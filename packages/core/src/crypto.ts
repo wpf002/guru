@@ -140,6 +140,11 @@ export function rewrapToken(
   }
 }
 
+/** CSRF state for an OAuth redirect. Compare with `safeEqual`, never `===`. */
+export function generateStateToken(): string {
+  return randomBytes(32).toString("base64url");
+}
+
 /** Constant-time compare for OAuth `state` and similar. */
 export function safeEqual(a: string, b: string): boolean {
   const ab = Buffer.from(a, "utf8");

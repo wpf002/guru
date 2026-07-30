@@ -23,17 +23,42 @@ These are not style preferences. Breaking one is a design regression.
 1. **`userId` on every table holding user data.** Multi-tenant schema, single-tenant
    UX (§0.7). Tenancy is not retrofittable.
 2. **Every generated artifact points at a `Generation` row** recording resolved
-   inputs, prompt name, prompt version, and model (§0.8).
+   inputs, prompt name, prompt version, and model (§0.8). Inputs are stored
+   *resolved*, not as foreign keys — the brief and voice profile that produced a
+   draft are mutable, and a pointer to a since-edited row explains nothing.
 3. **Prompt versions are immutable.** Add a version in
    `packages/prompts/src/registry.ts`; never edit a published one. Editing in
    place silently rewrites the history of every artifact claiming to use it.
 4. **`ContentDraft.roadmapElementId` is required.** That foreign key is what
    mechanically enforces "strategy before content" (§1.4) — not prompt discipline.
+   There is deliberately no route that generates a post from a free-text topic.
 5. **Brief constraints are enforced in code, after generation.** See
    `packages/core/src/constraints.ts`. A never-say list in a prompt is a
-   suggestion; this is a filter.
+   suggestion; this is a filter. Same for the similarity gate in
+   `packages/core/src/similarity.ts` — "pattern-learning, not copying" is a claim
+   the product makes to users, so it is enforced rather than asserted.
 6. **Token plaintext never reaches a log, an error message, the database, or the
    client.** The Fastify logger redacts by field name; keep that list current.
+7. **Autonomy decisions are pure.** `packages/core/src/autonomy.ts` has no I/O;
+   `apps/api/src/services/autonomy.ts` only reads state, asks for a verdict, and
+   logs it. Blocked actions are logged as loudly as published ones — "the
+   guardrail held" has to be inspectable.
+
+## Model layer
+
+All generation goes through `packages/llm`. `claude-opus-5`, adaptive thinking,
+`output_config.format` for structured output, prompt caching on the system
+prefix.
+
+The system prefix is cached, so it must stay byte-identical across calls —
+anything with a timestamp or a per-request id belongs in `prompt`, after the
+breakpoint. Structured output is validated client-side with Zod on top of the
+constrained decode: schemas encode what an artifact needs to be *usable*
+downstream (a persona with signals, an element with a rationale), which a
+constrained decode does not guarantee.
+
+Refusals, truncation, and transport failures all write an audit row before
+throwing.
 
 ## Compliance boundaries
 
@@ -55,9 +80,9 @@ know the API surface:
 ## Layout
 
 ```
-apps/web              Next.js — intake, dashboard, review surfaces
+apps/web              Next.js — intake, dashboard, content + engagement review, autonomy
 apps/api              Fastify — OAuth, publishing, orchestration
-packages/core         crypto, confidence, constraints, network, voice, intake framework
+packages/core         crypto, confidence, constraints, network, voice, similarity, autonomy, intake framework
 packages/linkedin     OAuth + the three w_member_social actions
 packages/archive      detection, parsing, normalization, snapshot diffs
 packages/intel        peer/trend search, engagement target scoring

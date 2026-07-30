@@ -50,6 +50,9 @@ model User {
   documents        SourceDocument[]
   generations      Generation[]
   metricReports    MetricReport[]
+  autonomySettings AutonomySettings?
+  prospects        ProspectTarget[]
+  audienceSignals  AudienceSignal[]
 }
 
 /// LinkedIn OAuth connection. §1.0.
@@ -719,6 +722,10 @@ enum ConfidenceCategory {
   FORMAT
   CADENCE
   ENGAGEMENT_TARGET
+  /// Phase 2 (§2.5). Its own score with a permanently higher threshold —
+  /// unsolicited outreach done wrong carries materially higher relationship risk
+  /// than a mediocre post, so it never inherits content's earned trust.
+  OUTREACH
 }
 
 enum DecisionType {
@@ -852,6 +859,170 @@ model MetricReport {
   createdAt DateTime @default(now())
 
   @@index([userId, periodStart])
+}
+
+// ---------------------------------------------------------------------------
+// Earned autonomy & network growth — Phase 2
+// ---------------------------------------------------------------------------
+
+/// Guardrails for autonomous operation (§2.1, §2.2).
+///
+/// Autonomy is off by default and every field here is a limit rather than a
+/// capability — the question this table answers is "how far is Guru allowed to
+/// go", never "what may Guru do". `killSwitch` overrides everything.
+model AutonomySettings {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// §2.1 — the first autonomy earned, because a mediocre comment costs far
+  /// less than a mediocre post and vastly less than a mediocre DM.
+  engagementAutonomyEnabled Boolean @default(false)
+  /// §2.2 — separate threshold from engagement, enabled separately.
+  contentAutonomyEnabled    Boolean @default(false)
+
+  dailyEngagementCap Int @default(5)
+  dailyContentCap    Int @default(1)
+
+  /// Empty means "no allowlist" — but `requireAllowlist` decides whether that
+  /// means everything or nothing, so an empty list is never silently permissive.
+  targetAllowlist  String[] @default([])
+  requireAllowlist Boolean  @default(true)
+
+  /// Hard exclusions. Checked against generated output before publishing, on
+  /// top of the brief's never-say list.
+  topicExclusions String[] @default([])
+
+  /// One switch that halts all autonomous action immediately, independent of
+  /// scores and caps.
+  killSwitch          Boolean   @default(false)
+  killSwitchReason    String?
+  killSwitchEngagedAt DateTime?
+
+  enabledAt DateTime?
+  updatedAt DateTime  @updatedAt
+
+  actions AutonomousAction[]
+}
+
+enum AutonomousOutcome {
+  PUBLISHED
+  BLOCKED_KILL_SWITCH
+  BLOCKED_CAP
+  BLOCKED_CONFIDENCE
+  BLOCKED_ALLOWLIST
+  BLOCKED_CONSTRAINT
+  FAILED
+}
+
+/// Every autonomous decision, including the ones that were blocked.
+///
+/// The blocks are the more valuable half of this log: "the guardrail held" is
+/// the claim autonomy rests on, and it has to be inspectable rather than
+/// asserted.
+model AutonomousAction {
+  id         String           @id @default(cuid())
+  settingsId String
+  settings   AutonomySettings @relation(fields: [settingsId], references: [id], onDelete: Cascade)
+  userId     String
+
+  kind    String
+  outcome AutonomousOutcome
+  reason  String?
+
+  contentDraftId    String?
+  engagementDraftId String?
+
+  /// Scores at the moment of the decision — a later score change must not
+  /// rewrite why this action was allowed.
+  confidenceSnapshot Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+enum ProspectStatus {
+  IDENTIFIED
+  DRAFTED
+  SENT_BY_USER
+  DISMISSED
+}
+
+/// Persona-matched prospecting (§2.3) and assisted outreach (§2.4).
+///
+/// Guru builds the list, drafts the message, and deep-links to the profile with
+/// the draft ready. A human taps send. There is no code path that sends a
+/// connection request or a DM, because no sanctioned API path exists (§0.4) and
+/// the alternatives risk the account this product exists to grow.
+model ProspectTarget {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name        String
+  headline    String?
+  company     String?
+  profileUrl  String?
+
+  /// Why this person, traced to the roadmap like everything else.
+  roadmapElementId String?
+  personaFit       Float?
+  rationale        String?
+
+  status ProspectStatus @default(IDENTIFIED)
+
+  /// Drafted message. Never sent by Guru — copied to the clipboard for the user.
+  draftMessage String?
+  generationId String?
+
+  /// Set when the user reports having sent it, which is the only way we know.
+  sentAt      DateTime?
+  dismissedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, status])
+  @@index([userId, personaFit])
+}
+
+// ---------------------------------------------------------------------------
+// The funnel/fund model — Phase 3 hedge (§5)
+// ---------------------------------------------------------------------------
+
+enum AudienceAxis {
+  CUSTOMER
+  OPERATOR
+  PEER
+  UNKNOWN
+}
+
+/// Classifying inbound along the customer/operator axis.
+///
+/// Phase 3 is direction, not spec — but the classification costs almost nothing
+/// now and is the difference between starting that phase with a year of labeled
+/// data and starting it cold.
+model AudienceSignal {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Who — a connection, a commenter, a conversation.
+  subjectName String
+  subjectUrl  String?
+  connectionId String?
+
+  axis       AudienceAxis @default(UNKNOWN)
+  confidence Float?
+  reason     String?
+
+  /// What the classification was made from, so it can be re-judged later.
+  evidence String?
+
+  generationId String?
+  createdAt    DateTime @default(now())
+
+  @@index([userId, axis])
 }
 
 // ---------------------------------------------------------------------------

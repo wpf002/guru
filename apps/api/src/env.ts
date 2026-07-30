@@ -4,6 +4,10 @@
  * Fails at boot rather than at the moment a user tries to connect their account.
  * A missing TOKEN_ENCRYPTION_KEY discovered during an OAuth callback means a
  * half-completed connection and a user who has already granted consent.
+ *
+ * Google and the intel layer are optional: declining Gmail costs the user a
+ * manual archive download, not the product, so a deployment without those
+ * credentials must still start.
  */
 
 export interface Env {
@@ -15,6 +19,16 @@ export interface Env {
     clientSecret: string;
     redirectUri: string;
   };
+  google: {
+    clientId: string;
+    clientSecret: string;
+    redirectUri: string;
+  } | null;
+  intel: {
+    provider: "exa" | "brave" | "serpapi";
+    apiKey: string;
+    tier3ScrapingEnabled: boolean;
+  } | null;
   webOrigin: string;
 }
 
@@ -24,6 +38,19 @@ function required(name: string): string {
   const value = process.env[name];
   if (!value) throw new EnvError(`Missing required environment variable: ${name}`);
   return value;
+}
+
+function optionalGroup<T>(names: string[], build: () => T): T | null {
+  const present = names.filter((n) => Boolean(process.env[n]));
+  if (present.length === 0) return null;
+  if (present.length !== names.length) {
+    // A half-configured integration fails at first use, which is a confusing
+    // place to learn about a typo'd variable name.
+    throw new EnvError(
+      `Partially configured integration. Set all of [${names.join(", ")}] or none.`,
+    );
+  }
+  return build();
 }
 
 export function loadEnv(): Env {
@@ -40,6 +67,20 @@ export function loadEnv(): Env {
       clientSecret: required("LINKEDIN_CLIENT_SECRET"),
       redirectUri: required("LINKEDIN_REDIRECT_URI"),
     },
+    google: optionalGroup(
+      ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"],
+      () => ({
+        clientId: process.env.GOOGLE_CLIENT_ID!,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        redirectUri: process.env.GOOGLE_REDIRECT_URI!,
+      }),
+    ),
+    intel: optionalGroup(["INTEL_SEARCH_API_KEY"], () => ({
+      provider: (process.env.INTEL_SEARCH_PROVIDER ?? "exa") as "exa" | "brave" | "serpapi",
+      apiKey: process.env.INTEL_SEARCH_API_KEY!,
+      // Off unless explicitly enabled. A business decision, not a technical one.
+      tier3ScrapingEnabled: process.env.INTEL_TIER3_SCRAPING_ENABLED === "true",
+    })),
     webOrigin: process.env.WEB_ORIGIN ?? "http://localhost:3000",
   };
 }
