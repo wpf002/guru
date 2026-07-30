@@ -91,6 +91,86 @@ describe("§1.1 archive ingestion", () => {
     expect(snapshot.error).toMatch(/ZIP/i);
   });
 
+  it("merges the second installment into the first rather than opening a new snapshot", async () => {
+    // LinkedIn splits the export across two emails. Treating them as two
+    // snapshots means the newest one holds no connections at all — the network
+    // then reads as empty and the growth diff reports every connection as
+    // churned.
+    const user = await makeUser();
+
+    const first = new AdmZip();
+    first.addFile(
+      "Connections.csv",
+      Buffer.from(
+        `First Name,Last Name,URL,Email Address,Company,Position,Connected On
+Jane,Doe,https://linkedin.com/in/janedoe,,Acme,VP Ops,15 Mar 2023
+John,Smith,https://linkedin.com/in/johnsmith,,Acme,Analyst,01 Apr 2023
+`,
+        "utf8",
+      ),
+    );
+    await ingestUpload(user.id, first.toBuffer());
+
+    const second = new AdmZip();
+    second.addFile(
+      "Shares.csv",
+      Buffer.from(`Date,ShareLink,ShareCommentary\n2024-05-01,https://x,"A post."\n`, "utf8"),
+    );
+    second.addFile("Comments.csv", Buffer.from(`Date,Link,Message\n2024-05-01,https://y,"A comment."\n`, "utf8"));
+    await ingestUpload(user.id, second.toBuffer());
+
+    const snapshots = await prisma.archiveSnapshot.findMany({ where: { userId: user.id } });
+    expect(snapshots).toHaveLength(1);
+    expect(snapshots[0]!.status).toBe("COMPLETE");
+    expect(snapshots[0]!.secondInstallmentAt).not.toBeNull();
+
+    // Both halves live in the one snapshot, so the network is still visible.
+    const snapshotId = snapshots[0]!.id;
+    expect(await prisma.connection.count({ where: { snapshotId } })).toBe(2);
+    expect(await prisma.shareRecord.count({ where: { snapshotId } })).toBe(1);
+    expect(await prisma.commentRecord.count({ where: { snapshotId } })).toBe(1);
+  });
+
+  it("does not report the whole network as churned after the second installment", async () => {
+    const user = await makeUser();
+
+    const first = new AdmZip();
+    first.addFile(
+      "Connections.csv",
+      Buffer.from(
+        `First Name,Last Name,URL,Email Address,Company,Position,Connected On
+Jane,Doe,https://linkedin.com/in/janedoe,,Acme,VP Ops,15 Mar 2023
+`,
+        "utf8",
+      ),
+    );
+    await ingestUpload(user.id, first.toBuffer());
+
+    const second = new AdmZip();
+    second.addFile("Comments.csv", Buffer.from(`Date,Link,Message\n2024-05-01,https://y,"c"\n`, "utf8"));
+    await ingestUpload(user.id, second.toBuffer());
+
+    // One snapshot, so there is nothing to diff against yet — not a diff that
+    // claims everyone left.
+    const delta = await snapshotDelta(user.id);
+    expect(delta!.removed).toHaveLength(0);
+    expect(delta!.added).toHaveLength(1);
+  });
+
+  it("ingests a second installment on its own when there is no first to merge into", async () => {
+    const user = await makeUser();
+    const zip = new AdmZip();
+    zip.addFile("Comments.csv", Buffer.from(`Date,Link,Message\n2024-05-01,https://y,"c"\n`, "utf8"));
+
+    const result = await ingestUpload(user.id, zip.toBuffer());
+    expect(result.status).toBe("INGESTED");
+
+    const snapshot = await prisma.archiveSnapshot.findUniqueOrThrow({
+      where: { id: result.snapshotId },
+    });
+    expect(snapshot.status).toBe("COMPLETE");
+  });
+
   it("links each snapshot to its predecessor and diffs growth", async () => {
     const user = await makeUser();
     await ingestUpload(user.id, archiveZip());

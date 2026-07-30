@@ -128,8 +128,18 @@ export interface NetworkPicture {
   rationale: string;
   invitationAcceptRate: number | null;
   cadence: ReturnType<typeof postingCadence>;
-  /** Past posts that drew comments from persona-matching accounts (§1.4). */
-  postsThatDrewPersonaComments: number;
+  /**
+   * §1.4 asks for "which past posts drew comments from target-persona
+   * accounts", and §9 sources it from "archive re-ingest". Neither is possible:
+   * the archive's comments.csv contains comments the member *left*, not
+   * comments *received*, and reading engagement back on your own posts needs
+   * r_member_social, which is closed (§0.3).
+   *
+   * Null rather than 0, because "we cannot see this" and "nobody commented" are
+   * different facts and a dashboard must not present the first as the second.
+   */
+  postsThatDrewPersonaComments: number | null;
+  postsThatDrewPersonaCommentsNote: string;
 }
 
 export async function networkPicture(userId: string): Promise<NetworkPicture> {
@@ -167,9 +177,9 @@ export async function networkPicture(userId: string): Promise<NetworkPicture> {
     rationale: network.rationale,
     invitationAcceptRate: invitationAcceptRate(invitations),
     cadence: postingCadence(shares),
-    // r_member_social is closed (§0.3), so this counts only what the archive
-    // shows. Understated by design rather than estimated.
-    postsThatDrewPersonaComments: 0,
+    postsThatDrewPersonaComments: null,
+    postsThatDrewPersonaCommentsNote:
+      "Not measurable: the archive records comments you left, not comments you received, and reading back engagement on your own posts requires r_member_social, which LinkedIn has closed. Use the weekly self-report instead (§9).",
   };
 }
 

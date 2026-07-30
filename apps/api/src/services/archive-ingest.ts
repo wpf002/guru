@@ -77,9 +77,8 @@ export async function pollAndIngest(
     const body = bodyById.get(detection.messageId) ?? "";
     const link = extractArchiveLink(body);
 
-    const snapshot = await openSnapshot(userId, "GMAIL_AUTO", detection.messageId);
-
     if (!link) {
+      const { snapshot } = await resolveSnapshot(userId, "FIRST", "GMAIL_AUTO", detection.messageId);
       await failSnapshot(snapshot.id, "Archive email contained no recognisable download link.");
       results.push({ snapshotId: snapshot.id, status: "NEEDS_MANUAL_DOWNLOAD" });
       continue;
@@ -87,6 +86,9 @@ export async function pollAndIngest(
 
     const buffer = await tryDownload(link.url);
     if (!buffer) {
+      // Record the link so the UI can hand it to the user as a one-click
+      // download that feeds the upload path.
+      const { snapshot } = await resolveSnapshot(userId, "FIRST", "GMAIL_AUTO", detection.messageId);
       await prisma.archiveSnapshot.update({
         where: { id: snapshot.id },
         data: {
@@ -103,7 +105,7 @@ export async function pollAndIngest(
       continue;
     }
 
-    results.push(await ingestBuffer(userId, snapshot, buffer));
+    results.push(await ingestBuffer(userId, buffer, "GMAIL_AUTO", detection.messageId));
   }
 
   return results;
@@ -111,15 +113,56 @@ export async function pollAndIngest(
 
 /** Manual upload — the fallback for users who decline Gmail access (§1.1.3). */
 export async function ingestUpload(userId: string, buffer: Buffer): Promise<IngestResult> {
-  const snapshot = await openSnapshot(userId, "MANUAL_UPLOAD", null);
-  return ingestBuffer(userId, snapshot, buffer);
+  return ingestBuffer(userId, buffer, "MANUAL_UPLOAD", null);
 }
 
-async function openSnapshot(
+/** How recently the first installment must have arrived to still be merged into. */
+const INSTALLMENT_PAIR_WINDOW_MS = 30 * 86_400_000;
+
+/**
+ * Decides which snapshot this archive belongs in.
+ *
+ * LinkedIn splits the export across two emails, and they are two halves of one
+ * snapshot rather than two snapshots: the first carries Connections.csv, the
+ * second everything else. Writing the second to a fresh row is what §1.1 calls
+ * "merged" but is really the opposite — the newest snapshot would then contain
+ * no connections at all, so the network reads as empty and the growth diff
+ * reports every connection as churned.
+ *
+ * So a second installment lands in the open first-installment snapshot when one
+ * exists. Anything else opens a new one.
+ */
+async function resolveSnapshot(
   userId: string,
+  kind: "FIRST" | "SECOND" | "COMPLETE",
   source: "GMAIL_AUTO" | "MANUAL_UPLOAD",
   messageId: string | null,
-): Promise<ArchiveSnapshot> {
+): Promise<{ snapshot: ArchiveSnapshot; merged: boolean }> {
+  if (kind === "SECOND") {
+    const open = await prisma.archiveSnapshot.findFirst({
+      where: {
+        userId,
+        status: "FIRST_INSTALLMENT_INGESTED",
+        requestedAt: { gte: new Date(Date.now() - INSTALLMENT_PAIR_WINDOW_MS) },
+      },
+      orderBy: { requestedAt: "desc" },
+    });
+
+    if (open) {
+      const snapshot = await prisma.archiveSnapshot.update({
+        where: { id: open.id },
+        data: {
+          gmailMessageIds: messageId
+            ? { set: [...new Set([...open.gmailMessageIds, messageId])] }
+            : undefined,
+        },
+      });
+      return { snapshot, merged: true };
+    }
+    // No open first installment — a second-installment archive on its own is
+    // still worth ingesting, it just has no connections in it.
+  }
+
   // Each snapshot is diffed against the previous one — that diff is where three
   // of the §9 metrics come from, so the link is established at creation rather
   // than reconstructed later.
@@ -129,7 +172,7 @@ async function openSnapshot(
     select: { id: true },
   });
 
-  return prisma.archiveSnapshot.create({
+  const snapshot = await prisma.archiveSnapshot.create({
     data: {
       userId,
       source,
@@ -137,6 +180,7 @@ async function openSnapshot(
       previousSnapshotId: previous?.id ?? null,
     },
   });
+  return { snapshot, merged: false };
 }
 
 async function failSnapshot(snapshotId: string, error: string) {
@@ -175,38 +219,44 @@ async function tryDownload(url: string): Promise<Buffer | null> {
 
 async function ingestBuffer(
   userId: string,
-  snapshot: ArchiveSnapshot,
   buffer: Buffer,
+  source: "GMAIL_AUTO" | "MANUAL_UPLOAD",
+  messageId: string | null,
 ): Promise<IngestResult> {
+  // Parse before touching the database: which snapshot this belongs in depends
+  // on what is actually inside the ZIP.
   let contents: ArchiveContents;
   try {
     contents = parseArchiveZip(buffer);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const { snapshot } = await resolveSnapshot(userId, "FIRST", source, messageId);
     await failSnapshot(snapshot.id, message);
     return { snapshotId: snapshot.id, status: "NEEDS_MANUAL_DOWNLOAD" };
   }
 
+  const kind = classifyContents(contents);
+  const { snapshot, merged } = await resolveSnapshot(userId, kind, source, messageId);
+
   await persistContents(userId, snapshot.id, contents);
 
-  const kind = classifyContents(contents);
   const now = new Date();
 
   await prisma.archiveSnapshot.update({
     where: { id: snapshot.id },
     data: {
-      status:
-        kind === "COMPLETE"
-          ? "COMPLETE"
-          : kind === "FIRST"
-            ? "FIRST_INSTALLMENT_INGESTED"
-            : "COMPLETE",
+      // A merged second installment completes the snapshot it joined. A
+      // second installment with nothing to join is complete on its own — it
+      // simply has no connections in it.
+      status: kind === "FIRST" ? "FIRST_INSTALLMENT_INGESTED" : "COMPLETE",
       firstInstallmentAt: kind === "SECOND" ? snapshot.firstInstallmentAt : now,
       secondInstallmentAt: kind === "SECOND" ? now : snapshot.secondInstallmentAt,
       completedAt: kind === "FIRST" ? null : now,
       fileReport: {
+        ...((snapshot.fileReport as Record<string, unknown> | null) ?? {}),
         ...contents.report,
         unrecognizedFiles: contents.unrecognizedFiles,
+        merged,
       } as unknown as Prisma.InputJsonValue,
       error: null,
     },
