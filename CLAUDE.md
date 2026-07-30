@@ -71,9 +71,18 @@ know the API surface:
   add one — every available approach is session-cookie automation that risks the
   user's account. The objective is met via engagement-led growth (§1.6) and
   assisted send (§2.4).
+- **Publishing and engaging use different scopes.** `w_member_social` (self-serve)
+  covers posting; `w_member_social_feed` (vetted Community Management API) covers
+  commenting and reacting. This corrects roadmap §0.1 — see
+  [docs/LINKEDIN-SETUP.md](docs/LINKEDIN-SETUP.md#amendment-to-01). Never add a
+  scope to the default request set: LinkedIn rejects an authorization request
+  naming an unapproved scope and fails sign-in entirely.
 - **`r_member_social` is closed.** Own-post engagement cannot be read back (§0.3).
   Posts are tracked forward from creation instead. Do not write code that assumes
   a read-back API will appear.
+- **`LINKEDIN_API_VERSION` expires.** LinkedIn supports each monthly version for a
+  minimum of one year, then rejects it outright — no fallback. Re-check it yearly
+  against the versioning docs.
 - **Tier 3 scraping stays behind `INTEL_TIER3_SCRAPING_ENABLED`,** default off.
 - **`MessageRecord.usableForAnalysis` defaults to false.** DM content is other
   people's words; opt-in per record, never a bulk default.

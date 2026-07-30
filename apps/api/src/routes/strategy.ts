@@ -13,6 +13,7 @@ import {
   reviewDraft,
   scheduleDraft,
 } from "../services/content.js";
+import { MissingScopeError } from "@guru/linkedin";
 import { ReauthRequiredError } from "../services/linkedin-session.js";
 import type { Env } from "../env.js";
 
@@ -174,6 +175,12 @@ export async function strategyRoutes(app: FastifyInstance, env: Env, llm: GuruLl
       } catch (err) {
         if (err instanceof ReauthRequiredError) {
           return reply.code(401).send({ error: "Reconnect LinkedIn to publish." });
+        }
+        if (err instanceof MissingScopeError) {
+          return reply.code(403).send({
+            error: err.message,
+            requiredScope: err.requiredScope,
+          });
         }
         return reply.code(502).send({ error: (err as Error).message });
       }

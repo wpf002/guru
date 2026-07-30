@@ -1,17 +1,18 @@
 import { randomBytes } from "node:crypto";
+import { requestedScopes } from "./scopes.js";
 
 /**
  * LinkedIn three-legged OAuth — roadmap §1.0 / §0.6.
  *
- * Products: "Sign In with LinkedIn using OpenID Connect" + "Share on LinkedIn".
- * Scopes:   openid profile email w_member_social
- *
  * All scopes appear on a single consent screen and the member accepts all or
  * none, so the requested set is the minimum that makes the product work. Adding
  * a scope later means every existing user re-consents.
+ *
+ * The requested set is configurable rather than constant because LinkedIn
+ * rejects an authorization request naming a scope the app has not been approved
+ * for — it fails the whole sign-in rather than granting a subset. See
+ * packages/linkedin/src/scopes.ts for which product grants what.
  */
-
-export const LINKEDIN_SCOPES = ["openid", "profile", "email", "w_member_social"] as const;
 
 const AUTHORIZE_URL = "https://www.linkedin.com/oauth/v2/authorization";
 const TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken";
@@ -21,6 +22,8 @@ export interface OAuthConfig {
   clientId: string;
   clientSecret: string;
   redirectUri: string;
+  /** True once the Community Management API is approved for this app. */
+  feedScopesApproved?: boolean;
 }
 
 export interface TokenResponse {
@@ -63,7 +66,7 @@ export function authorizationUrl(config: OAuthConfig, state: string): string {
     client_id: config.clientId,
     redirect_uri: config.redirectUri,
     state,
-    scope: LINKEDIN_SCOPES.join(" "),
+    scope: requestedScopes({ feedApproved: config.feedScopesApproved ?? false }).join(" "),
   });
   return `${AUTHORIZE_URL}?${params.toString()}`;
 }
@@ -106,7 +109,7 @@ async function postToken(body: URLSearchParams): Promise<TokenResponse> {
     refreshTokenExpiresAt: raw.refresh_token_expires_in
       ? new Date(now + raw.refresh_token_expires_in * 1000)
       : undefined,
-    scope: raw.scope ?? LINKEDIN_SCOPES.join(" "),
+    scope: raw.scope ?? "",
   };
 }
 

@@ -1,10 +1,21 @@
+import {
+  assertCapability,
+  capabilities,
+  parseGrantedScopes,
+  type MemberCapability,
+} from "./scopes.js";
+
 /**
- * LinkedIn member actions under `w_member_social` — roadmap §1.5 and §1.6.
+ * LinkedIn member actions — roadmap §1.5 and §1.6.
  *
- * The scope is documented as: post, comment, and react on posts on behalf of an
- * authenticated member. All three are here. The comment and react halves are
- * what make the engagement engine (§1.6) a Phase 1 subsystem rather than a
- * Phase 2 aspiration — no partner approval, no gray-area automation.
+ * All three actions live here, but they do *not* share a scope, which is a
+ * correction to §0.1. Publishing needs `w_member_social` (Share on LinkedIn,
+ * self-serve); commenting and reacting need `w_member_social_feed` (Community
+ * Management, vetted). See scopes.ts for why the roadmap's reading was wrong.
+ *
+ * Each method checks the granted scope before spending a round trip, so a
+ * missing approval reads as an explanation rather than a 403 from inside a
+ * publish path.
  *
  * What is *not* here: connection requests and DMs. There is no sanctioned API
  * path for either (§0.4). Anything that appears to offer one is session-cookie
@@ -15,11 +26,13 @@
 const API_BASE = "https://api.linkedin.com/rest";
 
 /**
- * LinkedIn versions its REST API by month and deprecates versions on a rolling
- * ~12-month window. Pinned here so an upgrade is a deliberate, greppable change
- * rather than a silent behavioural shift.
+ * LinkedIn versions its REST API by month and supports each version for a
+ * minimum of twelve months. Pinned so an upgrade is a deliberate, greppable
+ * change rather than a silent behavioural shift — and it needs revisiting
+ * yearly, because a sunset version is rejected outright rather than falling
+ * back to the latest.
  */
-export const LINKEDIN_API_VERSION = "202506";
+export const LINKEDIN_API_VERSION = "202607";
 
 export type ReactionType =
   | "LIKE"
@@ -57,14 +70,26 @@ export class LinkedInAuthExpiredError extends LinkedInApiError {
 }
 
 export class LinkedInClient {
+  private readonly granted: Set<string>;
+
   constructor(
     private readonly accessToken: string,
     /** `urn:li:person:{sub}` — the OIDC sub, not the profile vanity name. */
     private readonly personUrn: string,
-  ) {}
+    /** Scopes as granted with the token, not as requested. */
+    grantedScopes: string | Set<string> = "",
+  ) {
+    this.granted =
+      typeof grantedScopes === "string" ? parseGrantedScopes(grantedScopes) : grantedScopes;
+  }
 
   static personUrnFromSub(sub: string): string {
     return `urn:li:person:${sub}`;
+  }
+
+  /** What this connection can actually do — for the UI to render honestly. */
+  can(): Record<MemberCapability, boolean> {
+    return capabilities(this.granted);
   }
 
   private async request(
@@ -115,6 +140,8 @@ export class LinkedInClient {
     text: string;
     visibility?: Visibility;
   }): Promise<PublishResult> {
+    assertCapability(this.granted, "PUBLISH");
+
     const res = await this.request("/posts", {
       method: "POST",
       body: {
@@ -149,6 +176,8 @@ export class LinkedInClient {
    * `postUrn` is the activity or share URN of the target post.
    */
   async comment(options: { postUrn: string; text: string }): Promise<PublishResult> {
+    assertCapability(this.granted, "COMMENT");
+
     const encoded = encodeURIComponent(options.postUrn);
     const res = await this.request(`/socialActions/${encoded}/comments`, {
       method: "POST",
@@ -159,14 +188,18 @@ export class LinkedInClient {
       },
     });
 
-    const urn =
-      res.headers.get("x-restli-id") ??
-      (safeParse(res.text)?.["$URN"] as string | undefined) ??
-      (safeParse(res.text)?.id as string | undefined);
+    // A comment URN is composite: urn:li:comment:(threadUrn,commentId). The
+    // body carries the assembled form; the header carries only the bare id, so
+    // it has to be composed with the thread we commented on.
+    const body = safeParse(res.text);
+    const composite = body?.commentUrn as string | undefined;
+    const bareId = res.headers.get("x-restli-id") ?? (body?.id as string | undefined);
+
+    const urn = composite ?? (bareId ? `urn:li:comment:(${options.postUrn},${bareId})` : null);
 
     if (!urn) {
       throw new LinkedInApiError(
-        "LinkedIn accepted the comment but returned no URN.",
+        "LinkedIn accepted the comment but returned no identifier.",
         res.status,
         res.text,
         false,
@@ -180,11 +213,15 @@ export class LinkedInClient {
     postUrn: string;
     type?: ReactionType;
   }): Promise<void> {
+    assertCapability(this.granted, "REACT");
+
     await this.request("/reactions", {
       method: "POST",
+      // Encoded because it is a URN in a query parameter under Rest.li 2.0.
       query: { actor: this.personUrn },
       body: {
         root: options.postUrn,
+        // MAYBE was removed in 202307 and now 400s; ReactionType excludes it.
         reactionType: options.type ?? "LIKE",
       },
     });
@@ -192,6 +229,7 @@ export class LinkedInClient {
 
   /** Delete a post the member published. */
   async deletePost(postUrn: string): Promise<void> {
+    assertCapability(this.granted, "PUBLISH");
     await this.request(`/posts/${encodeURIComponent(postUrn)}`, { method: "DELETE" });
   }
 }

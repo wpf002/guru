@@ -27,7 +27,12 @@ const env = {
   nodeEnv: "test",
   port: 0,
   databaseUrl: "",
-  linkedin: { clientId: "x", clientSecret: "x", redirectUri: "x" },
+  linkedin: {
+    clientId: "x",
+    clientSecret: "x",
+    redirectUri: "x",
+    feedScopesApproved: false,
+  },
   google: null,
   intel: null,
   webOrigin: "http://localhost:3000",

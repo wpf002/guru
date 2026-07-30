@@ -19,7 +19,8 @@
     "db:generate": "pnpm --filter @guru/db generate",
     "db:migrate": "pnpm --filter @guru/db migrate",
     "db:studio": "pnpm --filter @guru/db studio",
-    "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "linkedin:doctor": "pnpm --filter @guru/api linkedin:doctor"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

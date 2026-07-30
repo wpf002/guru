@@ -68,7 +68,14 @@ export async function linkedInClientFor(env: Env, userId: string): Promise<Linke
     }
   }
 
-  return new LinkedInClient(accessToken, LinkedInClient.personUrnFromSub(account.linkedinSub));
+  // Scopes as *granted*, read from the stored grant rather than from config —
+  // LinkedIn can return a narrower set than was asked for, and assuming
+  // otherwise means discovering the difference at publish time.
+  return new LinkedInClient(
+    accessToken,
+    LinkedInClient.personUrnFromSub(account.linkedinSub),
+    account.scopes,
+  );
 }
 
 /**

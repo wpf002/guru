@@ -4,6 +4,17 @@
 
 Source spec: [`spec/linkedin-gtm-engine-mvp.pdf`](spec/linkedin-gtm-engine-mvp.pdf). Every element of that spec is carried forward — see §10 Traceability.
 
+> **Amendment — §0.1 is wrong about scopes.** Verified against LinkedIn's
+> per-endpoint permission tables in July 2026: `w_member_social` covers
+> publishing only. Commenting and reacting require `w_member_social_feed`, which
+> comes from the **Community Management API — a vetted product**, not a
+> self-serve one. §1.6 therefore cannot ship in Phase 1 without an approval
+> process, and the minimum shippable cut (§11) is §1.0–§1.5.
+>
+> The strategic argument for engagement-led growth is unaffected, and the code is
+> built and tested behind a flag. Details, sources, and the application steps:
+> [LINKEDIN-SETUP.md](LINKEDIN-SETUP.md#amendment-to-01).
+
 ---
 
 ## 0. Integration Verdict — Resolved

@@ -137,9 +137,11 @@ similarity, scoring — under unit test.
 
 **Not verified.** The third-party edge:
 
-- **No LinkedIn API call has been made.** The OAuth flow, the publish/comment/
-  react client, and the API version pin (`202506`) are written to the documented
-  contract but not exercised.
+- **No LinkedIn API call has been made** beyond credential validation. The OAuth
+  flow and the publish/comment/react client are written to the documented
+  contract but not exercised. Request/response shapes and the version pin were
+  re-checked against LinkedIn's current docs in July 2026 — which caught a
+  sunset API version and a wrong scope assumption, both since fixed.
 - **No Gmail or Drive call has been made.** The archive-link patterns are
   matched against realistic samples, not against a real LinkedIn email.
 - **No model call has been made.** Every test scripts the transport, so the
@@ -207,14 +209,26 @@ LinkedIn credentials and the encryption key are required.
 
 ### LinkedIn credentials
 
-Guru needs a Developer Portal app tied to a LinkedIn **Company Page** — create
-the page first, it gates everything else (§0.6). Request the *Sign In with
-LinkedIn using OpenID Connect* and *Share on LinkedIn* products, then set
-`LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, and `LINKEDIN_REDIRECT_URI`.
+Full walkthrough: **[docs/LINKEDIN-SETUP.md](docs/LINKEDIN-SETUP.md)**.
 
-Scopes are `openid profile email w_member_social` — the minimum set. LinkedIn
-shows all scopes on one consent screen and the member accepts all or none, so
-adding one later means every existing user re-consents.
+The short version: create a Company Page, create a Developer Portal app against
+it, add *Sign In with LinkedIn (OIDC)* and *Share on LinkedIn* — both self-serve
+— then fill in `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, and
+`LINKEDIN_REDIRECT_URI` and run:
+
+```bash
+pnpm linkedin:doctor
+```
+
+It validates the credentials against LinkedIn, checks the redirect URI shape,
+reports which capabilities the granted scopes will actually allow, and prints a
+consent URL to test the flow.
+
+**Publishing is self-serve; commenting and reacting are not.** The engagement
+engine (§1.6) needs `w_member_social_feed`, which comes from the vetted
+Community Management API. Guru ships with that scope un-requested — LinkedIn
+rejects an authorization request naming an unapproved scope outright — so
+§1.0–§1.5 work immediately and §1.6 turns on with one flag once approved.
 
 ---
 

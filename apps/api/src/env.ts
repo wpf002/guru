@@ -18,6 +18,13 @@ export interface Env {
     clientId: string;
     clientSecret: string;
     redirectUri: string;
+    /**
+     * Set only once the Community Management API shows Approved in the
+     * Developer Portal. Requesting `w_member_social_feed` before then makes
+     * LinkedIn reject the whole authorization request, so this defaults off and
+     * the product ships with publishing working and engagement gated.
+     */
+    feedScopesApproved: boolean;
   };
   google: {
     clientId: string;
@@ -66,6 +73,7 @@ export function loadEnv(): Env {
       clientId: required("LINKEDIN_CLIENT_ID"),
       clientSecret: required("LINKEDIN_CLIENT_SECRET"),
       redirectUri: required("LINKEDIN_REDIRECT_URI"),
+      feedScopesApproved: process.env.LINKEDIN_FEED_SCOPES_APPROVED === "true",
     },
     google: optionalGroup(
       ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"],

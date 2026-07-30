@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { ConstraintViolationError } from "@guru/core";
 import type { GuruLlm } from "@guru/llm";
-import type { ReactionType } from "@guru/linkedin";
+import { MissingScopeError, type ReactionType } from "@guru/linkedin";
 import {
   discoverTargets,
   draftComment,
@@ -77,6 +77,15 @@ export async function engagementRoutes(app: FastifyInstance, env: Env, llm: Guru
       } catch (err) {
         if (err instanceof ReauthRequiredError) {
           return reply.code(401).send({ error: "Reconnect LinkedIn to engage." });
+        }
+        // Not a transport failure: the app was never granted the scope. 403
+        // with the reason, so the UI can say what to apply for.
+        if (err instanceof MissingScopeError) {
+          return reply.code(403).send({
+            error: err.message,
+            requiredScope: err.requiredScope,
+            capability: err.capability,
+          });
         }
         return reply.code(502).send({ error: (err as Error).message });
       }
