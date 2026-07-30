@@ -9,6 +9,10 @@ published without approval.
 Full plan: [docs/ROADMAP.md](docs/ROADMAP.md). Source spec:
 [docs/spec/linkedin-gtm-engine-mvp.pdf](docs/spec/linkedin-gtm-engine-mvp.pdf).
 
+**Does the code match the spec?** [docs/TRACEABILITY.md](docs/TRACEABILITY.md) maps every
+roadmap section to its code and its test, and records the three places the
+roadmap and reality diverge.
+
 ---
 
 ## Status
