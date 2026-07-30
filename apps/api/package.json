@@ -1,0 +1,30 @@
+{
+  "name": "@guru/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/cors": "^10.0.2",
+    "@guru/archive": "workspace:*",
+    "@guru/core": "workspace:*",
+    "@guru/db": "workspace:*",
+    "@guru/intel": "workspace:*",
+    "@guru/linkedin": "workspace:*",
+    "@guru/prompts": "workspace:*",
+    "fastify": "^5.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

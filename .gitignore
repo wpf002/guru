@@ -1,0 +1,24 @@
+node_modules/
+dist/
+.next/
+out/
+.turbo/
+coverage/
+
+# Env — never commit. Real secrets live in Railway.
+.env
+.env.*
+!.env.example
+
+# LinkedIn data archives are user PII. Never commit, even for testing.
+archives/
+*.zip
+Connections.csv
+comments.csv
+messages.csv
+Shares.csv
+
+.DS_Store
+*.log
+.vscode/
+.idea/

@@ -1,0 +1,105 @@
+:root {
+  --bg: #ffffff;
+  --fg: #16181d;
+  --muted: #5b6270;
+  --line: #e3e6ec;
+  --accent: #0a66c2;
+  --error: #b42318;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1115;
+    --fg: #e9ecf1;
+    --muted: #9aa3b2;
+    --line: #262a33;
+    --accent: #4a9eff;
+    --error: #f97066;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  line-height: 1.6;
+}
+
+.page {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 4rem 1.5rem 6rem;
+}
+
+h1 {
+  font-size: 2rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin: 0 0 1rem;
+}
+
+h2 {
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 2rem 0 0.5rem;
+}
+
+.lede {
+  font-size: 1.0625rem;
+  color: var(--muted);
+  margin: 0 0 2rem;
+}
+
+.checkpoint {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.5rem 1.5rem 1.5rem;
+}
+
+.checkpoint ul {
+  margin: 0;
+  padding-left: 1.15rem;
+}
+
+.checkpoint li {
+  margin: 0.5rem 0;
+}
+
+.note {
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin: 1.5rem 0 2rem;
+}
+
+.error {
+  border: 1px solid var(--error);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  color: var(--error);
+  margin: 0 0 1.5rem;
+}
+
+.button {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+}
+
+.button:hover {
+  filter: brightness(1.08);
+}

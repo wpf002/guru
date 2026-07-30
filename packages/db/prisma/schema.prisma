@@ -1,0 +1,926 @@
+// Guru — schema
+//
+// Two rules hold everywhere in this file, per roadmap §0.7 and §0.8:
+//
+//   1. Multi-tenant schema, single-tenant UX. Every table that holds user data
+//      carries `userId` and indexes on it. We are not retrofitting tenancy later.
+//   2. Auditable over impressive. Every generated artifact records the inputs,
+//      the prompt version, and the model that produced it. "Why did it suggest
+//      this" must be answerable a year from now.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity & connections
+// ---------------------------------------------------------------------------
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  linkedinAccount  LinkedInAccount?
+  googleAccount    GoogleAccount?
+  archiveSnapshots ArchiveSnapshot[]
+  connections      Connection[]
+  shares           ShareRecord[]
+  articles         ArticleRecord[]
+  comments         CommentRecord[]
+  messages         MessageRecord[]
+  invitations      InvitationRecord[]
+  intakeSessions   IntakeSession[]
+  briefs           StrategicBrief[]
+  roadmaps         Roadmap[]
+  peers            Peer[]
+  contentDrafts    ContentDraft[]
+  engagementTargets EngagementTarget[]
+  engagementDrafts EngagementDraft[]
+  decisions        Decision[]
+  confidenceScores ConfidenceScore[]
+  voiceProfiles    VoiceProfile[]
+  documents        SourceDocument[]
+  generations      Generation[]
+  metricReports    MetricReport[]
+}
+
+/// LinkedIn OAuth connection. §1.0.
+/// Tokens are envelope-encrypted at rest (packages/core/src/crypto). The plaintext
+/// never touches the database, a log line, or the client.
+model LinkedInAccount {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// OIDC `sub` — the stable member identifier.
+  linkedinSub String  @unique
+  name        String?
+  email       String?
+  pictureUrl  String?
+
+  /// Ciphertext + wrapped data key. See TokenEnvelope in packages/core.
+  accessTokenCipher  String
+  refreshTokenCipher String?
+  /// Key version, so rotation does not require re-auth of every user.
+  keyVersion Int @default(1)
+
+  /// Authorization-code tokens expire in ~60 days. We rotate proactively well
+  /// before this and fall back to a re-auth prompt when refresh fails.
+  accessTokenExpiresAt  DateTime
+  refreshTokenExpiresAt DateTime?
+  lastRefreshedAt       DateTime?
+  refreshFailureCount   Int       @default(0)
+
+  /// Space-delimited granted scopes, recorded as granted rather than as requested.
+  scopes String
+
+  connectedAt    DateTime  @default(now())
+  disconnectedAt DateTime?
+
+  @@index([accessTokenExpiresAt])
+}
+
+/// Google connection — Gmail watch for the archive emails (§1.1) and Drive for
+/// meeting notes (§1.9). Separate row so a user can grant one and not the other.
+model GoogleAccount {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  googleSub String  @unique
+  email     String?
+
+  accessTokenCipher  String
+  refreshTokenCipher String?
+  keyVersion         Int    @default(1)
+
+  accessTokenExpiresAt DateTime
+  scopes               String
+
+  /// Independent of scope grant: the user can revoke either watcher without
+  /// disconnecting the account.
+  gmailWatchEnabled Boolean @default(false)
+  driveWatchEnabled Boolean @default(false)
+
+  connectedAt    DateTime  @default(now())
+  disconnectedAt DateTime?
+}
+
+// ---------------------------------------------------------------------------
+// Archive ingestion — §1.1
+// ---------------------------------------------------------------------------
+
+enum ArchiveSource {
+  GMAIL_AUTO
+  MANUAL_UPLOAD
+}
+
+enum ArchiveStatus {
+  AWAITING_FIRST_INSTALLMENT
+  FIRST_INSTALLMENT_INGESTED
+  AWAITING_SECOND_INSTALLMENT
+  COMPLETE
+  FAILED
+}
+
+/// One archive request → one snapshot. LinkedIn delivers in two installments;
+/// the first carries Connections.csv and lands within minutes, the second follows
+/// later with the rest. Snapshots are never mutated in place — a re-archive
+/// creates a new row so §9 can diff growth and churn between them.
+model ArchiveSnapshot {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  source ArchiveSource
+  status ArchiveStatus @default(AWAITING_FIRST_INSTALLMENT)
+
+  requestedAt              DateTime  @default(now())
+  firstInstallmentAt       DateTime?
+  secondInstallmentAt      DateTime?
+  completedAt              DateTime?
+
+  /// Gmail message ids we matched, kept so ingestion is idempotent on replay.
+  gmailMessageIds String[] @default([])
+
+  /// Per-file parse outcome: { "Connections.csv": { rows: 4211, skipped: 3 } }
+  fileReport Json?
+  error      String?
+
+  /// Prior snapshot this one is diffed against.
+  previousSnapshotId String?
+
+  connections Connection[]
+  shares      ShareRecord[]
+  articles    ArticleRecord[]
+  comments    CommentRecord[]
+  messages    MessageRecord[]
+  invitations InvitationRecord[]
+
+  @@index([userId, requestedAt])
+}
+
+/// Connections.csv. Dirty in practice — emoji in names, inconsistent casing,
+/// blank positions, most emails withheld by privacy default. Raw values are kept
+/// alongside normalized ones so a parser fix can be replayed without a re-archive.
+model Connection {
+  id         String          @id @default(cuid())
+  userId     String
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshotId String
+  snapshot   ArchiveSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  firstName String?
+  lastName  String?
+  /// Usually absent — LinkedIn withholds it unless the connection opted in.
+  email     String?
+  company   String?
+  position  String?
+  profileUrl String?
+  connectedOn DateTime?
+
+  /// Post-normalization, used for matching and dedupe across snapshots.
+  normalizedName    String?
+  normalizedCompany String?
+
+  /// Audience-fit scoring against the brief's persona (§1.4). Null until scored.
+  personaFitScore  Float?
+  personaFitReason String?
+  scoredAgainstBriefId String?
+
+  rawRow Json
+
+  @@index([userId, snapshotId])
+  @@index([userId, normalizedCompany])
+  @@index([userId, personaFitScore])
+}
+
+/// Shares.csv — every shortform post ever published. Content baseline plus half
+/// the voice corpus (§1.8).
+model ShareRecord {
+  id         String          @id @default(cuid())
+  userId     String
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshotId String
+  snapshot   ArchiveSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  shareLink   String?
+  publishedAt DateTime?
+  content     String?
+  visibility  String?
+  mediaUrl    String?
+  rawRow      Json
+
+  @@index([userId, publishedAt])
+}
+
+/// Articles/ — longform. Depth topics and indexed authority assets.
+model ArticleRecord {
+  id         String          @id @default(cuid())
+  userId     String
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshotId String
+  snapshot   ArchiveSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  title       String?
+  publishedAt DateTime?
+  content     String?
+  sourceFile  String?
+
+  @@index([userId, publishedAt])
+}
+
+/// comments.csv — the voice corpus. Hundreds or thousands of samples of how the
+/// user actually writes, available on day one instead of after months of edits.
+model CommentRecord {
+  id         String          @id @default(cuid())
+  userId     String
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshotId String
+  snapshot   ArchiveSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  postUrl   String?
+  createdAt DateTime?
+  message   String?
+  rawRow    Json
+
+  @@index([userId, createdAt])
+}
+
+/// messages.csv — DM history. Real client language, objections, deal patterns.
+/// Highest-sensitivity table in the schema: it contains other people's words.
+/// Never leaves the tenant, never goes into a prompt without explicit opt-in.
+model MessageRecord {
+  id         String          @id @default(cuid())
+  userId     String
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshotId String
+  snapshot   ArchiveSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  conversationId String?
+  fromName       String?
+  toName         String?
+  sentAt         DateTime?
+  content        String?
+  direction      String?
+
+  /// Gate for §1.8 / §1.4. Defaults false: opt-in, not opt-out.
+  usableForAnalysis Boolean @default(false)
+
+  @@index([userId, conversationId])
+  @@index([userId, sentAt])
+}
+
+/// Invitations — the outreach acceptance-rate baseline (§1.4).
+model InvitationRecord {
+  id         String          @id @default(cuid())
+  userId     String
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshotId String
+  snapshot   ArchiveSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  fromName   String?
+  toName     String?
+  sentAt     DateTime?
+  direction  String?
+  status     String?
+  message    String?
+
+  @@index([userId, sentAt])
+}
+
+// ---------------------------------------------------------------------------
+// Intake & brief — §1.2, §1.3
+// ---------------------------------------------------------------------------
+
+enum IntakeArea {
+  WHO_THEY_ARE
+  WHERE_THEY_ARE_TODAY
+  WHERE_THEY_WANT_TO_BE
+  WHO_THEY_REACH
+  VOICE_AND_CONSTRAINTS
+}
+
+enum IntakeStatus {
+  IN_PROGRESS
+  COMPLETE
+  ABANDONED
+}
+
+/// The framework constrains the state machine; the model controls the path
+/// within it. Resumable across sittings — a session is a durable object, not a
+/// websocket.
+model IntakeSession {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status      IntakeStatus @default(IN_PROGRESS)
+  startedAt   DateTime     @default(now())
+  completedAt DateTime?
+  lastActiveAt DateTime    @updatedAt
+
+  /// Areas 2 and 5 arrive pre-populated from archive data, so intake opens as a
+  /// conversation between informed parties rather than an interrogation.
+  seededFromSnapshotId String?
+
+  slots    IntakeSlot[]
+  turns    IntakeTurn[]
+  brief    StrategicBrief?
+
+  @@index([userId, status])
+}
+
+/// One slot per spec area, each with its own completion criteria. The model
+/// follows up freely until the criteria are met, then advances.
+model IntakeSlot {
+  id        String        @id @default(cuid())
+  sessionId String
+  session   IntakeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  area     IntakeArea
+  complete Boolean    @default(false)
+
+  /// The criteria this slot must satisfy, and which are currently met. Stored
+  /// per-slot rather than in code so criteria can evolve without invalidating
+  /// in-flight sessions.
+  criteria    Json
+  metCriteria String[] @default([])
+
+  /// Structured extraction so far.
+  data Json?
+
+  /// True when pre-filled from the archive rather than asked.
+  seeded Boolean @default(false)
+
+  completedAt DateTime?
+
+  @@unique([sessionId, area])
+}
+
+model IntakeTurn {
+  id        String        @id @default(cuid())
+  sessionId String
+  session   IntakeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  index Int
+  role  String
+  content String
+  area  IntakeArea?
+
+  generationId String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([sessionId, index])
+}
+
+/// Versioned and user-editable. Re-running intake creates v2; nothing overwrites.
+model StrategicBrief {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  version Int
+  /// Null for a hand-created brief.
+  sessionId String?        @unique
+  session   IntakeSession? @relation(fields: [sessionId], references: [id])
+
+  role        String?
+  industry    String?
+  niche       String?
+  subNiche    String?
+  offer       String?
+
+  currentState Json?
+  targetState  Json?
+  persona      Json?
+  voiceProfileSummary String?
+
+  /// Hard filters on every generated output, not prompt suggestions. Enforced in
+  /// packages/core/src/constraints, after generation, before the user ever sees
+  /// a draft.
+  neverSay        String[] @default([])
+  complianceFlags String[] @default([])
+
+  supersededById String?
+  editedByUser   Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roadmaps Roadmap[]
+
+  @@unique([userId, version])
+  @@index([userId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Analysis & roadmap — §1.4
+// ---------------------------------------------------------------------------
+
+enum NetworkDensity {
+  SPARSE
+  MODERATE
+  DENSE
+}
+
+/// The gap between current and target state, phased. Every draft traces back to
+/// a RoadmapElement — that foreign key is what mechanically enforces "strategy
+/// before content" rather than leaving it to prompt discipline.
+model Roadmap {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  briefId String
+  brief   StrategicBrief @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  version Int
+
+  /// --- Network analysis ---
+  connectionCount Int?
+  density         NetworkDensity?
+  /// Share of the network matching the target persona. A 10,000-connection
+  /// network of the wrong people is strategically sparse; this is the sharper
+  /// signal the spec's raw size heuristic was proxying for.
+  audienceFitRatio      Float?
+  invitationAcceptRate  Float?
+  historicalCadence     Json?
+  networkAnalysis       Json?
+
+  trendAnalysis Json?
+  peerAnalysis  Json?
+
+  summary String?
+
+  generationId String?
+
+  createdAt DateTime @default(now())
+
+  elements RoadmapElement[]
+
+  @@unique([userId, version])
+  @@index([userId, createdAt])
+}
+
+model RoadmapElement {
+  id        String  @id @default(cuid())
+  roadmapId String
+  roadmap   Roadmap @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+
+  phase       Int
+  title       String
+  rationale   String
+  /// The business goal and audience segment this element serves — carried onto
+  /// every draft as its "why".
+  businessGoal    String?
+  audienceSegment String?
+  targetFormats   String[] @default([])
+  targetTopics    String[] @default([])
+
+  order Int
+
+  contentDrafts    ContentDraft[]
+  engagementDrafts EngagementDraft[]
+
+  @@index([roadmapId, phase, order])
+}
+
+/// Peers named at intake (5–15) plus any discovered via the intel layer.
+model Peer {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name        String
+  linkedinUrl String?
+  company     String?
+  /// Most operators publish the same thinking in several places (§0.5 Tier 2).
+  otherChannels Json?
+
+  seededByUser Boolean @default(true)
+  active       Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  posts PeerPost[]
+
+  @@index([userId, active])
+}
+
+enum IntelTier {
+  SEARCH_INDEX
+  USER_SEEDED
+  PUBLIC_SCRAPE
+}
+
+/// Peer content, with its provenance tier recorded. Tier 3 rows are only ever
+/// written when INTEL_TIER3_SCRAPING_ENABLED is on, and the tier is stored so
+/// that decision stays auditable after the fact.
+model PeerPost {
+  id     String @id @default(cuid())
+  peerId String
+  peer   Peer   @relation(fields: [peerId], references: [id], onDelete: Cascade)
+  userId String
+
+  tier      IntelTier
+  url       String?
+  content   String?
+  publishedAt DateTime?
+  format    String?
+  /// Only populated on tiers that expose it.
+  reactionCount Int?
+  commentCount  Int?
+
+  retrievedAt DateTime @default(now())
+  provider    String?
+
+  @@index([userId, publishedAt])
+  @@index([peerId, publishedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Content engine — §1.5
+// ---------------------------------------------------------------------------
+
+enum DraftStatus {
+  DRAFT
+  IN_REFINEMENT
+  APPROVED
+  REJECTED
+  SCHEDULED
+  PUBLISHED
+  FAILED
+}
+
+model ContentDraft {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Required. A draft with no roadmap element cannot exist — this is the
+  /// "strategy before content" guarantee expressed as a constraint.
+  roadmapElementId String
+  roadmapElement   RoadmapElement @relation(fields: [roadmapElementId], references: [id], onDelete: Cascade)
+
+  status  DraftStatus @default(DRAFT)
+  content String
+  format  String?
+
+  /// Surfaced with the draft, not buried in metadata.
+  whyThis String?
+
+  /// §1.4 peer analysis is pattern-learning, not copying. Drafts are similarity-
+  /// checked against source material before reaching the user; the score and the
+  /// closest match are kept for audit.
+  similarityScore    Float?
+  similarityMatchUrl String?
+
+  voiceProfileId String?
+  generationId   String?
+
+  scheduledFor DateTime?
+  publishedAt  DateTime?
+  /// LinkedIn UGC post URN, tracked forward from creation. Because
+  /// r_member_social is closed (§0.3), this is how Guru knows what it published.
+  linkedinUrn  String?
+  publishError String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  revisions DraftRevision[]
+  decisions Decision[]
+
+  @@index([userId, status])
+  @@index([userId, scheduledFor])
+}
+
+/// Full revision history. Each user edit is also voice-model training data
+/// (§1.8) — the diff is the signal, so it is computed and stored, not recomputed.
+model DraftRevision {
+  id      String       @id @default(cuid())
+  draftId String
+  draft   ContentDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  userId  String
+
+  index   Int
+  content String
+  /// "model" | "user"
+  author  String
+  /// The natural-language instruction that produced this revision, when there
+  /// was one ("shorter", "not how I'd phrase it").
+  instruction String?
+
+  /// Diff against the previous revision, for the voice model.
+  diff Json?
+
+  generationId String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([draftId, index])
+}
+
+// ---------------------------------------------------------------------------
+// Engagement engine — §1.6
+// ---------------------------------------------------------------------------
+
+/// A post worth showing up in the comments of. Scored on author fit, audience
+/// overlap, and freshness.
+model EngagementTarget {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  postUrl     String
+  authorName  String?
+  authorUrl   String?
+  postContent String?
+  postedAt    DateTime?
+
+  tier IntelTier
+
+  priorityScore  Float?
+  authorFit      Float?
+  audienceOverlap Float?
+  freshness      Float?
+  scoreRationale String?
+
+  /// Set once acted on, so the same post is not surfaced twice.
+  actedAt DateTime?
+
+  discoveredAt DateTime @default(now())
+
+  drafts EngagementDraft[]
+
+  @@unique([userId, postUrl])
+  @@index([userId, priorityScore])
+}
+
+enum EngagementKind {
+  COMMENT
+  REACTION
+}
+
+model EngagementDraft {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  targetId String
+  target   EngagementTarget @relation(fields: [targetId], references: [id], onDelete: Cascade)
+
+  /// Engagement traces to strategy the same way content does.
+  roadmapElementId String?
+  roadmapElement   RoadmapElement? @relation(fields: [roadmapElementId], references: [id])
+
+  kind   EngagementKind @default(COMMENT)
+  status DraftStatus    @default(DRAFT)
+
+  /// Substantive — adds a point rather than agreeing.
+  content String?
+  /// For reactions: LIKE | PRAISE | EMPATHY | INTEREST | APPRECIATION | ENTERTAINMENT
+  reactionType String?
+
+  whyThis String?
+
+  voiceProfileId String?
+  generationId   String?
+
+  publishedAt DateTime?
+  linkedinUrn String?
+  publishError String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  decisions Decision[]
+
+  @@index([userId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Feedback, confidence, voice — §1.7, §1.8, §1.10
+// ---------------------------------------------------------------------------
+
+enum ConfidenceCategory {
+  TOPIC
+  ANGLE
+  TONE
+  FORMAT
+  CADENCE
+  ENGAGEMENT_TARGET
+}
+
+enum DecisionType {
+  APPROVE
+  REJECT
+  EDIT
+}
+
+/// Every approve/reject, with its reason where offered. Rejection reasons are
+/// the strongest training signal in the system, so the field exists from day one
+/// even though the UI makes it optional.
+model Decision {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type     DecisionType
+  category ConfidenceCategory
+
+  contentDraftId String?
+  contentDraft   ContentDraft? @relation(fields: [contentDraftId], references: [id], onDelete: Cascade)
+
+  engagementDraftId String?
+  engagementDraft   EngagementDraft? @relation(fields: [engagementDraftId], references: [id], onDelete: Cascade)
+
+  reason String?
+  /// Structured reason codes where the UI offers them.
+  reasonCodes String[] @default([])
+
+  /// Phase 3 hedge (§5): classify inbound along the customer/operator axis from
+  /// day one, so that phase starts with labeled data instead of a cold start.
+  audienceAxis String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, category, createdAt])
+}
+
+/// Recency-weighted approval rate per category. Null score below the minimum
+/// sample size — an unscored category reads as "not enough data yet" rather than
+/// as zero.
+model ConfidenceScore {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  category ConfidenceCategory
+
+  score       Float?
+  sampleSize  Int   @default(0)
+  /// Below this, `score` stays null.
+  minSampleSize Int @default(20)
+
+  updatedAt DateTime @updatedAt
+
+  history ConfidenceEvent[]
+
+  @@unique([userId, category])
+}
+
+/// Every score movement, logged against the decision that triggered it. The
+/// dashboard in §1.7 reads from here — trust is earned transparently or not at all.
+model ConfidenceEvent {
+  id      String          @id @default(cuid())
+  scoreId String
+  score   ConfidenceScore @relation(fields: [scoreId], references: [id], onDelete: Cascade)
+  userId  String
+
+  decisionId String?
+  fromScore  Float?
+  toScore    Float?
+  sampleSize Int
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/// Cold-started from comments.csv + Shares.csv, refined from edit diffs and
+/// rejection reasons. User-inspectable and editable.
+model VoiceProfile {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  version Int
+
+  /// Sentence length, opener habits, punctuation, hedging, emoji use, structural
+  /// tics — whatever the analyzer extracts, versioned as data.
+  traits Json
+
+  summary String?
+
+  /// Provenance: how many real samples this was built from.
+  sourceCommentCount Int @default(0)
+  sourceShareCount   Int @default(0)
+  sourceEditCount    Int @default(0)
+
+  editedByUser Boolean @default(false)
+  active       Boolean @default(true)
+
+  generationId String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, version])
+}
+
+/// The honest proof the system is learning: this should decline over time (§1.8).
+model MetricReport {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  periodStart DateTime
+  periodEnd   DateTime
+
+  /// User-logged weekly, per §9 primary tier.
+  qualifiedConversations Int?
+  profileViews           Int?
+  /// Derived from archive diff.
+  inboundFromPersona     Int?
+  audienceFitRatioDelta  Float?
+  /// Comments received from target-persona accounts outweigh raw reaction counts —
+  /// eight reactions from real buyers beats two hundred from peers.
+  personaCommentsReceived Int?
+  postEngagement          Json?
+
+  editsPerDraft Float?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, periodStart])
+}
+
+// ---------------------------------------------------------------------------
+// Documents — §1.9
+// ---------------------------------------------------------------------------
+
+enum DocumentSource {
+  GOOGLE_DRIVE
+  UPLOAD
+}
+
+/// Summaries and user-tagged excerpts only — no raw transcripts (§0.7). Nothing
+/// auto-ingests: every document is confirmed individually, and `deletedAt` is a
+/// real deletion path, not a flag.
+model SourceDocument {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  source     DocumentSource
+  externalId String?
+  title      String?
+
+  confirmedAt DateTime?
+
+  summary  String?
+  excerpts Json?
+
+  extractedInsights Json?
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([userId, confirmedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Audit — §0.8
+// ---------------------------------------------------------------------------
+
+/// One row per model call. Everything generated in this system points at one of
+/// these, so any artifact can be traced back to the exact inputs, prompt version,
+/// and model that produced it — a year later, after the prompts have moved on.
+model Generation {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// e.g. "intake.followup", "brief.synthesize", "content.draft", "engagement.comment"
+  purpose String
+
+  promptName    String
+  promptVersion String
+  model         String
+
+  /// The resolved inputs, not a reference to them — the sources they came from
+  /// may have since been edited or deleted.
+  inputs Json
+
+  output       String?
+  outputJson   Json?
+
+  inputTokens  Int?
+  outputTokens Int?
+  latencyMs    Int?
+
+  error String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, purpose, createdAt])
+}
