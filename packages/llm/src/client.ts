@@ -101,14 +101,39 @@ export function toStrictJsonSchema(schema: z.ZodType): Record<string, unknown> {
   return closeObjects(json) as Record<string, unknown>;
 }
 
+/**
+ * Validation keywords the structured-outputs API rejects outright.
+ *
+ * Dropping them costs nothing: `structured()` runs the full Zod schema against
+ * the parsed output anyway, so `min(1)` is still enforced — just on our side
+ * rather than during decoding. The alternative is a 400 on every call, which is
+ * how this list was discovered.
+ */
+const UNSUPPORTED_KEYWORDS = new Set([
+  "minimum",
+  "maximum",
+  "exclusiveMinimum",
+  "exclusiveMaximum",
+  "multipleOf",
+  "minLength",
+  "maxLength",
+  "minItems",
+  "maxItems",
+  "uniqueItems",
+  "minProperties",
+  "maxProperties",
+]);
+
 function closeObjects(node: unknown): unknown {
   if (Array.isArray(node)) return node.map(closeObjects);
   if (!node || typeof node !== "object") return node;
 
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
-    // Drop whatever it was; the only accepted value is `false`.
+    // `additionalProperties` is dropped and re-set below; the only accepted
+    // value is `false`.
     if (key === "additionalProperties") continue;
+    if (UNSUPPORTED_KEYWORDS.has(key)) continue;
     out[key] = closeObjects(value);
   }
 
@@ -192,12 +217,18 @@ export class GuruLlm {
       ...options.auditInputs,
     };
 
+    // The SDK refuses non-streaming requests above ~16k max_tokens, because a
+    // long generation will outlive the HTTP timeout. The roadmap and trend
+    // analysis both ask for more than that, so those stream and the rest don't.
+    const maxTokens = options.maxTokens ?? 16000;
+    const mustStream = maxTokens > 16000;
+
     try {
-      const response = await this.client.beta.messages.create({
+      const request = {
         model: MODEL,
         // Thinking is on by default on this model and max_tokens caps thinking
         // plus response text together, so this needs real headroom.
-        max_tokens: options.maxTokens ?? 16000,
+        max_tokens: maxTokens,
         thinking: { type: "adaptive" },
         output_config: {
           effort: options.effort ?? "high",
@@ -225,7 +256,11 @@ export class GuruLlm {
           },
         ],
         messages: [{ role: "user", content: options.prompt }],
-      });
+      } satisfies Anthropic.Beta.MessageCreateParamsNonStreaming;
+
+      const response = mustStream
+        ? await this.client.beta.messages.stream(request).finalMessage()
+        : await this.client.beta.messages.create(request);
 
       const latencyMs = Date.now() - startedAt;
 

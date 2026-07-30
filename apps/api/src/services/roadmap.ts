@@ -33,8 +33,8 @@ export async function generateRoadmap(
       purpose: "roadmap.generate",
       promptName: "roadmap.generate",
       promptVersion: "1.0.0",
-      system: ROADMAP_SYSTEM,
-      prompt: buildPrompt(brief, network, intel),
+      system: `${ROADMAP_SYSTEM}\n\n--- THE BRIEF ---\n${briefContext(brief)}`,
+      prompt: buildPrompt(network, intel),
       effort: "xhigh",
       maxTokens: 32000,
       auditInputs: {
@@ -101,11 +101,9 @@ so in the summary and lean on the brief and the network rather than inventing
 trends.`;
 
 function buildPrompt(
-  brief: { id: string },
   network: Awaited<ReturnType<typeof networkPicture>>,
   intel: Awaited<ReturnType<typeof intelPicture>>,
 ): string {
-  void brief;
   const sections = [
     `NETWORK
 Connections: ${network.connectionCount}
