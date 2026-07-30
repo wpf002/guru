@@ -1060,6 +1060,36 @@ model SourceDocument {
 }
 
 // ---------------------------------------------------------------------------
+// Scheduling
+// ---------------------------------------------------------------------------
+
+/// Every scheduled job attempt.
+///
+/// Persisted rather than held in memory so a restart doesn't re-run everything
+/// — and so "did the archive watcher actually run last night" is answerable
+/// without reading logs. Failures are rows too: the backoff in
+/// packages/core/src/schedule.ts is computed from `consecutiveFailures`, which
+/// only exists because these are durable.
+model JobRun {
+  id      String  @id @default(cuid())
+  jobName String
+  /// Null for globally-scoped jobs.
+  userId  String?
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  ok         Boolean?
+  error      String?
+  /// Whatever the job wants to report — counts, ids, skip reasons.
+  detail     Json?
+
+  /// Carried forward on failure so backoff survives a restart.
+  consecutiveFailures Int @default(0)
+
+  @@index([jobName, userId, startedAt])
+}
+
+// ---------------------------------------------------------------------------
 // Audit — §0.8
 // ---------------------------------------------------------------------------
 

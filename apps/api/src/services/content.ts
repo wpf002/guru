@@ -5,6 +5,7 @@ import { CURRENT, render } from "@guru/prompts";
 import { ContentDraftSchema, RefinementSchema, type GuruLlm } from "@guru/llm";
 import { briefContext } from "./brief.js";
 import { voiceContext } from "./voice.js";
+import { documentSignal } from "./documents.js";
 import { linkedInClientFor } from "./linkedin-session.js";
 import type { Env } from "../env.js";
 
@@ -46,6 +47,11 @@ export async function generateDraft(
 
   const patterns = (element.roadmap.peerAnalysis as { patterns?: unknown[] } | null)?.patterns;
 
+  // §3.5's third signal source. Confirmed documents only — documentSignal
+  // enforces that — and empty until the user has confirmed one, which is the
+  // common case and reads fine in the prompt.
+  const documents = await documentSignal(userId);
+
   const { value, generationId } = await llm.structured(
     {
       userId,
@@ -58,12 +64,14 @@ export async function generateDraft(
         brief: briefContext(brief),
         voiceProfile: voice,
         peerPatterns: patterns ? JSON.stringify(patterns, null, 2) : "(no peer analysis available)",
+        documentSignal: documents || "(no meeting notes or documents confirmed yet)",
       }),
       effort: "high",
       auditInputs: {
         roadmapElementId,
         roadmapVersion: element.roadmap.version,
         briefVersion: brief.version,
+        documentSignalUsed: documents.length > 0,
       },
     },
     ContentDraftSchema,

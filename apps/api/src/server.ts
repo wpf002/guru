@@ -12,6 +12,7 @@ import { strategyRoutes } from "./routes/strategy.js";
 import { engagementRoutes } from "./routes/engagement.js";
 import { feedbackRoutes } from "./routes/feedback.js";
 import { autonomyRoutes } from "./routes/autonomy.js";
+import { schedulerStatus, startScheduler, tick } from "./services/scheduler.js";
 
 export async function buildServer() {
   const env = loadEnv();
@@ -53,7 +54,20 @@ export async function buildServer() {
   await feedbackRoutes(app, llm);
   await autonomyRoutes(app, env, llm);
 
-  return { app, env };
+  // Scheduler status and a manual trigger. The trigger exists because "wait
+  // fifteen minutes to see if the watcher works" is a bad debugging loop.
+  app.get<{ Querystring: { userId?: string } }>("/scheduler", async (request, reply) =>
+    reply.send(await schedulerStatus(request.query.userId)),
+  );
+  app.post("/scheduler/tick", async (_request, reply) => {
+    await tick(env, llm);
+    return reply.send(await schedulerStatus());
+  });
+
+  // Off in tests: an interval firing mid-suite would race the truncation.
+  const scheduler = env.nodeEnv === "test" ? null : startScheduler(env, llm);
+
+  return { app, env, scheduler };
 }
 
 const isEntrypoint =

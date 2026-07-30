@@ -175,6 +175,61 @@ Return JSON: { "content": string, "format": string, "whyThis": string }
 element this serves and which audience segment it is for.`,
 });
 
+/**
+ * v1.1.0 adds the meeting-notes signal.
+ *
+ * §3.5 names three signal sources that continuously update strategy: trends,
+ * approve/reject, and the user's own day-to-day work. The third was being
+ * extracted and stored and then reaching no prompt, which made it a feature on
+ * paper only. v1.0.0 is left intact above — every draft generated under it
+ * still resolves.
+ */
+export const CONTENT_DRAFT_V1_1 = register({
+  name: "content.draft",
+  version: "1.1.0",
+  variables: ["roadmapElement", "brief", "voiceProfile"],
+  template: `Write a ready-to-post LinkedIn post.
+
+THE STRATEGIC REASON THIS POST EXISTS:
+{{roadmapElement}}
+
+THE BRIEF:
+{{brief}}
+
+HOW THIS PERSON WRITES (modeled from their real posts and comments):
+{{voiceProfile}}
+
+WHAT PEERS IN THIS NICHE ARE DOING (patterns, not material to copy):
+{{peerPatterns}}
+
+FROM THEIR OWN RECENT WORK (meeting notes and documents they confirmed):
+{{documentSignal}}
+
+Requirements:
+- A finished post, not an outline and not a topic idea. It should be publishable
+  as written.
+- It must serve the roadmap element above. If you cannot connect it to that
+  element in one sentence, write a different post.
+- Match their voice profile, including the parts that are not "good writing" —
+  if they open abruptly, open abruptly. A post that reads better than they write
+  reads like it wasn't them.
+- Where their own work gives you a specific detail — a number, a phrase a client
+  used, a problem that keeps recurring — prefer it over anything generic. That
+  specificity is the whole reason those notes are here, and it is what a
+  competitor writing about the same topic cannot copy.
+- Never reproduce identifying details from those notes: no client names, no
+  figures that could identify a deal, nothing that survives being read by the
+  person it came from.
+- No engagement bait, no "agree?", no rows of single-sentence paragraphs unless
+  that is genuinely their pattern.
+- Do not reproduce phrasing or structure from the peer material. Those are there
+  to show what formats land, not to be rewritten.
+
+Return JSON: { "content": string, "format": string, "whyThis": string }
+"whyThis" is one sentence, shown to the user with the draft: which roadmap
+element this serves and which audience segment it is for.`,
+});
+
 export const ENGAGEMENT_COMMENT_V1 = register({
   name: "engagement.comment",
   version: "1.0.0",
@@ -261,6 +316,7 @@ export const ALL_TEMPLATES = [
   INTAKE_FOLLOWUP_V1,
   BRIEF_SYNTHESIZE_V1,
   CONTENT_DRAFT_V1,
+  CONTENT_DRAFT_V1_1,
   ENGAGEMENT_COMMENT_V1,
   VOICE_SUMMARY_V1,
   REFINE_DRAFT_V1,
@@ -270,7 +326,7 @@ export const ALL_TEMPLATES = [
 export const CURRENT = {
   intakeFollowup: INTAKE_FOLLOWUP_V1,
   briefSynthesize: BRIEF_SYNTHESIZE_V1,
-  contentDraft: CONTENT_DRAFT_V1,
+  contentDraft: CONTENT_DRAFT_V1_1,
   engagementComment: ENGAGEMENT_COMMENT_V1,
   voiceSummary: VOICE_SUMMARY_V1,
   refineDraft: REFINE_DRAFT_V1,
