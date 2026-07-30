@@ -9,10 +9,12 @@ canonical way to explain why something exists.
 
 ```bash
 pnpm install
-pnpm dev            # all apps
-pnpm test           # vitest across workspaces
+pnpm db:up               # Postgres on :5439 (dedicated container)
+pnpm dev                 # all apps
+pnpm test                # unit tests, no database needed
+pnpm test:integration    # service layer against real Postgres
 pnpm typecheck
-pnpm db:generate    # after any schema.prisma change
+pnpm db:generate         # after any schema.prisma change
 pnpm db:migrate
 ```
 
@@ -97,9 +99,22 @@ email, not failing to fetch one.
 
 ## Testing
 
-Vitest. Logic packages have real coverage; the tests encode the non-obvious
-decisions (why an edit counts as half an approval, why a large ill-fitting network
-scores as sparse, why freshness multiplies rather than adds). Read them before
-changing those behaviours.
+Two suites, both Vitest.
 
-Nothing in the test suite hits a network or a database.
+**Unit** (`pnpm test`) — pure logic in `packages/`. No network, no database. The
+tests encode the non-obvious decisions (why an edit counts as half an approval,
+why a large ill-fitting network scores as sparse, why freshness multiplies rather
+than adds). Read them before changing those behaviours.
+
+**Integration** (`pnpm test:integration`) — `apps/api/src/__tests__/*.integration.test.ts`.
+Real Postgres, scripted model. Single-threaded, truncating between tests. That
+split is the point: a mocked Prisma cannot catch an enum value that doesn't
+exist, a unique constraint that doesn't hold, or a cascade that doesn't cascade.
+
+The scripted LLM throws when a service makes more model calls than the test
+queued — a service quietly making an extra call is a bug worth failing on.
+
+New service code needs an integration test. If it touches something we have
+promised a user (a privacy contract, a guardrail, an approval gate), the test
+should assert the promise, not the implementation — that is how the
+`redactPrompt` bug was caught.

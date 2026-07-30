@@ -94,6 +94,29 @@ describe("text generation", () => {
     });
   });
 
+  it("keeps a redacted prompt out of the audit row but still sends it", async () => {
+    // §0.7: meeting transcripts are summarized and discarded. Auditing the
+    // prompt verbatim would quietly reintroduce them to the database.
+    const { llm, recorded, create } = harness({
+      stop_reason: "end_turn",
+      content: [{ type: "text", text: "ok" }],
+    });
+
+    await llm.text({
+      ...options,
+      prompt: "CONFIDENTIAL TRANSCRIPT: margin is 3%",
+      redactPrompt: true,
+    });
+
+    const audited = JSON.stringify(recorded[0]!.inputs);
+    expect(audited).not.toContain("CONFIDENTIAL");
+    expect(audited).toMatch(/redacted — \d+ chars not persisted/);
+
+    // The model still receives it — redaction is about persistence, not input.
+    const sent = create.mock.calls[0]![0] as any;
+    expect(sent.messages[0].content).toContain("CONFIDENTIAL");
+  });
+
   it("joins multiple text blocks", async () => {
     const { llm } = harness({
       stop_reason: "end_turn",

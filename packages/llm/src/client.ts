@@ -56,6 +56,16 @@ export interface CallOptions {
   maxTokens?: number;
   /** Extra context recorded on the Generation row beyond system + prompt. */
   auditInputs?: Record<string, unknown>;
+  /**
+   * Keep the prompt body out of the audit row.
+   *
+   * The default is to record it — that is what makes a generation explicable a
+   * year later. But some prompts carry content we have promised not to persist:
+   * meeting transcripts under the §0.7 contract are summarized and discarded,
+   * and auditing the prompt verbatim would quietly reintroduce them to the
+   * database. Those callers set this and lose replayability, deliberately.
+   */
+  redactPrompt?: boolean;
 }
 
 export interface CallResult<T> {
@@ -142,7 +152,9 @@ export class GuruLlm {
 
     const auditInputs = {
       system: options.system,
-      prompt: options.prompt,
+      prompt: options.redactPrompt
+        ? `[redacted — ${options.prompt.length} chars not persisted]`
+        : options.prompt,
       effort: options.effort ?? "high",
       ...options.auditInputs,
     };

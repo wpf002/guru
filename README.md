@@ -13,10 +13,10 @@ Full plan: [docs/ROADMAP.md](docs/ROADMAP.md). Source spec:
 
 ## Status
 
-Every phase in the roadmap is implemented. What is *not* done is verification
-against live credentials — no LinkedIn app, Google project, intel key, or
-Postgres instance has been connected yet, so nothing here has made a real API
-call. See [What is unverified](#what-is-unverified).
+Every phase in the roadmap is implemented, the schema is migrated onto a real
+Postgres, and every phase's service layer is exercised against it. What remains
+unverified is the third-party edge — no LinkedIn, Google, or Anthropic call has
+been made. See [What is unverified](#what-is-unverified).
 
 | Roadmap | Component | State |
 |---|---|---|
@@ -45,8 +45,17 @@ call. See [What is unverified](#what-is-unverified).
 | §5 | Customer/operator classification (Phase 1 hedge) | ✅ built |
 | §9 | Metrics: weekly report, archive-derived, edits/draft | ✅ built |
 
-**156 tests**, all passing. `apps/web` and `apps/api` both build; the API boots
-and serves every route.
+**157 unit tests** and **67 integration tests against a live Postgres**, all
+passing. `apps/web` and `apps/api` both build; the API boots against the real
+database and serves every route.
+
+The integration tests run each phase's service layer against actual Postgres
+with the model scripted — that is the split that matters, because it catches
+what a mocked Prisma cannot: enum values that don't exist, unique constraints
+that don't hold, cascade deletes that don't cascade. They found a real bug on
+first run: the document service claimed transcripts were never persisted, but
+the model layer audits every prompt, so the §0.7 contract was being broken in
+the `Generation` row. Fixed with an explicit `redactPrompt` opt-out.
 
 ---
 
@@ -114,45 +123,61 @@ the good one, and never a spinner that never resolves.
 
 ---
 
-## What is unverified
+## What is verified, and what is not
 
-Nothing here has run against a live service. Specifically:
+**Verified.** The migration applies cleanly to Postgres 16 (33 tables). Every
+phase's service layer runs against that database: archive ingestion and snapshot
+diffing, the intake state machine's completion rules, brief versioning, persona
+scoring and re-scoring, roadmap generation, all three content gates, engagement
+drafting, confidence scoring and the event log, the voice model, document
+ingestion's privacy contract, autonomy guardrails including the kill switch,
+prospecting, and classification. The API boots against the real database and
+serves every route. Plus the pure logic — crypto, network analysis, parsing,
+similarity, scoring — under unit test.
+
+**Not verified.** The third-party edge:
 
 - **No LinkedIn API call has been made.** The OAuth flow, the publish/comment/
   react client, and the API version pin (`202506`) are written to the documented
   contract but not exercised.
 - **No Gmail or Drive call has been made.** The archive-link patterns are
-  matched against realistic samples in tests, not against a real LinkedIn email.
-- **No model call has been made.** The model layer is tested against a fake
-  client; prompts have not been run.
-- **No migration has been applied.** `packages/db/prisma/migrations` is generated
-  from the schema via `migrate diff`, not from a live database.
+  matched against realistic samples, not against a real LinkedIn email.
+- **No model call has been made.** Every test scripts the transport, so the
+  prompts themselves are unexercised — output *shape* is enforced by schema,
+  output *quality* is unknown.
 
-The unit-tested logic — crypto, confidence, constraints, network analysis,
-parsing, similarity, autonomy guardrails, scoring — is the part that is actually
-verified.
+Each of these needs a credential nobody has issued yet, and the first is gated
+on the Company Page (§0.6).
 
 ---
 
 ## Setup
 
-Requires Node 20+, pnpm 9, and Postgres.
+Requires Node 20+, pnpm 9, and Docker (or your own Postgres).
 
 ```bash
 pnpm install
+```
+
+Start the database — a dedicated container on port 5439, so it won't collide
+with anything else you have running:
+
+```bash
+pnpm db:up
 ```
 
 ```bash
 cp .env.example .env
 ```
 
-Generate the token encryption key:
+Generate the token encryption key and put it in `.env` as
+`TOKEN_ENCRYPTION_KEY`:
 
 ```bash
 openssl rand -base64 32
 ```
 
-Put it in `.env` as `TOKEN_ENCRYPTION_KEY`, fill in `DATABASE_URL`, then:
+Apply the schema:
 
 ```bash
 pnpm db:generate && pnpm db:migrate
@@ -164,10 +189,16 @@ Run everything:
 pnpm dev
 ```
 
-Tests:
+Unit tests (no database needed):
 
 ```bash
 pnpm test
+```
+
+Integration tests (needs the database up):
+
+```bash
+pnpm test:integration
 ```
 
 Google, the intel provider, and the Anthropic key are all optional at boot —

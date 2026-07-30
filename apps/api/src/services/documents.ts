@@ -124,8 +124,11 @@ async function ingestText(
           : ""
       }`,
       effort: "medium",
-      // The raw text is not recorded on the audit row either — the whole point
-      // of the contract is that it does not persist anywhere.
+      // The prompt carries the transcript, and the §0.7 contract says it does
+      // not persist. Without this the audit row would quietly become the copy
+      // of the transcript we promised not to keep — the one place the contract
+      // is easiest to break by accident.
+      redactPrompt: true,
       auditInputs: {
         title: options.title,
         rawLength: options.raw.length,
