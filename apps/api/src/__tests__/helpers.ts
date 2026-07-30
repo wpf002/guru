@@ -54,7 +54,14 @@ export function scriptedLlm(initial: ScriptedResponse[] = []): ScriptedLlm {
     };
   };
 
-  const client = { beta: { messages: { create } } } as unknown as Anthropic;
+  // Calls above ~16k max_tokens take the streaming path, so the fake has to
+  // offer both surfaces or those services fail with "stream is not a function"
+  // — which is a harness gap masquerading as a product bug.
+  const stream = (params: Record<string, unknown>) => ({
+    finalMessage: () => create(params),
+  });
+
+  const client = { beta: { messages: { create, stream } } } as unknown as Anthropic;
 
   return {
     llm: new GuruLlm(prismaGenerationSink, client),
