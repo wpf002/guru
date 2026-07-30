@@ -14,6 +14,13 @@ export interface Env {
   nodeEnv: string;
   port: number;
   databaseUrl: string;
+  /**
+   * Null when LinkedIn is not configured. Publishing is then unavailable and
+   * everything else still works — the archive is a ZIP upload, and intake,
+   * brief, roadmap and drafting are all local. Requiring credentials at boot
+   * made a Developer Portal app an accidental prerequisite for the whole
+   * product; it never was one.
+   */
   linkedin: {
     clientId: string;
     clientSecret: string;
@@ -25,7 +32,7 @@ export interface Env {
      * the product ships with publishing working and engagement gated.
      */
     feedScopesApproved: boolean;
-  };
+  } | null;
   google: {
     clientId: string;
     clientSecret: string;
@@ -69,12 +76,15 @@ export function loadEnv(): Env {
     nodeEnv: process.env.NODE_ENV ?? "development",
     port: Number(process.env.API_PORT ?? 3001),
     databaseUrl: required("DATABASE_URL"),
-    linkedin: {
-      clientId: required("LINKEDIN_CLIENT_ID"),
-      clientSecret: required("LINKEDIN_CLIENT_SECRET"),
-      redirectUri: required("LINKEDIN_REDIRECT_URI"),
-      feedScopesApproved: process.env.LINKEDIN_FEED_SCOPES_APPROVED === "true",
-    },
+    linkedin: optionalGroup(
+      ["LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET", "LINKEDIN_REDIRECT_URI"],
+      () => ({
+        clientId: process.env.LINKEDIN_CLIENT_ID!,
+        clientSecret: process.env.LINKEDIN_CLIENT_SECRET!,
+        redirectUri: process.env.LINKEDIN_REDIRECT_URI!,
+        feedScopesApproved: process.env.LINKEDIN_FEED_SCOPES_APPROVED === "true",
+      }),
+    ),
     google: optionalGroup(
       ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"],
       () => ({

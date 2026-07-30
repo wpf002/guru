@@ -24,7 +24,19 @@ export class ReauthRequiredError extends Error {
   }
 }
 
+export class LinkedInNotConfiguredError extends Error {
+  constructor() {
+    super(
+      "LinkedIn is not configured on this deployment, so publishing is unavailable. " +
+        "Copy the draft and post it yourself, or see docs/LINKEDIN-SETUP.md.",
+    );
+    this.name = "LinkedInNotConfiguredError";
+  }
+}
+
 export async function linkedInClientFor(env: Env, userId: string): Promise<LinkedInClient> {
+  if (!env.linkedin) throw new LinkedInNotConfiguredError();
+
   const account = await prisma.linkedInAccount.findUnique({ where: { userId } });
   if (!account || account.disconnectedAt) {
     throw new ReauthRequiredError(userId);
@@ -43,7 +55,7 @@ export async function linkedInClientFor(env: Env, userId: string): Promise<Linke
 
     try {
       const refreshed = await refreshAccessToken(
-        env.linkedin,
+        env.linkedin!,
         decryptToken(account.refreshTokenCipher),
       );
       accessToken = refreshed.accessToken;

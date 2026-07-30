@@ -4,6 +4,7 @@ import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import { GuruLlm, prismaGenerationSink } from "@guru/llm";
 import { loadEnv } from "./env.js";
+import { bootstrapRoutes } from "./routes/bootstrap.js";
 import { linkedinAuthRoutes } from "./routes/linkedin-auth.js";
 import { archiveRoutes } from "./routes/archive.js";
 import { intakeRoutes } from "./routes/intake.js";
@@ -43,6 +44,7 @@ export async function buildServer() {
 
   app.get("/health", async () => ({ ok: true }));
 
+  await bootstrapRoutes(app);
   await linkedinAuthRoutes(app, env);
   await archiveRoutes(app, env);
   await intakeRoutes(app, llm);

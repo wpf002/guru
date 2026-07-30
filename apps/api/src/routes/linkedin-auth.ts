@@ -23,8 +23,16 @@ const STATE_COOKIE = "li_oauth_state";
 const STATE_TTL_SECONDS = 600;
 
 export async function linkedinAuthRoutes(app: FastifyInstance, env: Env) {
+  const linkedin = env.linkedin;
+
   /** Step 1 — redirect to LinkedIn's consent screen. */
   app.get("/auth/linkedin/start", async (request, reply) => {
+    if (!linkedin) {
+      return reply.code(503).send({
+        error:
+          "LinkedIn is not configured. Publishing is unavailable; everything else works. See docs/LINKEDIN-SETUP.md.",
+      });
+    }
     const state = generateState();
 
     reply.setCookie(STATE_COOKIE, state, {
@@ -35,13 +43,15 @@ export async function linkedinAuthRoutes(app: FastifyInstance, env: Env) {
       maxAge: STATE_TTL_SECONDS,
     });
 
-    return reply.redirect(authorizationUrl(env.linkedin, state));
+    return reply.redirect(authorizationUrl(linkedin, state));
   });
 
   /** Step 2 — the callback. */
   app.get<{ Querystring: { code?: string; state?: string; error?: string; error_description?: string } }>(
     "/auth/linkedin/callback",
     async (request, reply) => {
+      if (!linkedin) return reply.code(503).send({ error: "LinkedIn is not configured." });
+
       const { code, state, error, error_description } = request.query;
 
       if (error) {
@@ -59,7 +69,7 @@ export async function linkedinAuthRoutes(app: FastifyInstance, env: Env) {
       reply.clearCookie(STATE_COOKIE, { path: "/" });
 
       try {
-        const tokens = await exchangeCode(env.linkedin, code);
+        const tokens = await exchangeCode(linkedin, code);
         const profile = await fetchProfile(tokens.accessToken);
 
         // Multi-tenant schema, single-tenant UX (§0.7): the user row is keyed on

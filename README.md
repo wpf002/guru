@@ -207,7 +207,22 @@ Google, the intel provider, and the Anthropic key are all optional at boot —
 a deployment without them starts and degrades visibly rather than failing.
 LinkedIn credentials and the encryption key are required.
 
-### LinkedIn credentials
+### LinkedIn is optional
+
+**You do not need LinkedIn to use Guru.** The archive is a ZIP upload, and
+intake, brief, roadmap, drafting and refinement are all local. Only publishing
+touches the API — until you wire it up, copy the draft and post it yourself.
+
+Start with no credentials at all:
+
+```bash
+curl -X POST localhost:3001/bootstrap/user -H 'content-type: application/json' -d '{}'
+```
+
+That returns a userId and the three URLs to work through. The server boots
+without `LINKEDIN_*` set; the publish button returns a clear 503 explaining why.
+
+### LinkedIn credentials, when you want publishing
 
 Full walkthrough: **[docs/LINKEDIN-SETUP.md](docs/LINKEDIN-SETUP.md)**.
 
