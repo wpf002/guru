@@ -151,7 +151,7 @@ describe("§1.2 intake state machine", () => {
         question: "What exactly do you sell?",
         satisfiedCriteria: ["role"],
         areaComplete: true,
-        extracted: { role: "Operations consultant" },
+        extracted: [{ key: "role", value: "Operations consultant" }],
       }),
     ]);
 
@@ -175,7 +175,7 @@ describe("§1.2 intake state machine", () => {
         question: "And what do you sell?",
         satisfiedCriteria: ["role", "invented_key"],
         areaComplete: false,
-        extracted: {},
+        extracted: [],
       }),
     ]);
 
@@ -195,13 +195,13 @@ describe("§1.2 intake state machine", () => {
         question: "(area 1 satisfied)",
         satisfiedCriteria: ["role", "industry", "niche", "subNiche", "offer"],
         areaComplete: true,
-        extracted: { role: "Ops consultant", offer: "Fractional ops leadership" },
+        extracted: [{ key: "role", value: "Ops consultant" }, { key: "offer", value: "Fractional ops leadership" }],
       }),
       json({
         question: "How often do you post at the moment?",
         satisfiedCriteria: [],
         areaComplete: false,
-        extracted: {},
+        extracted: [],
       }),
     ]);
 
@@ -216,7 +216,7 @@ describe("§1.2 intake state machine", () => {
     const user = await makeUser();
     const session = await startIntake(user.id);
     const { llm } = scriptedLlm([
-      json({ question: "Q", satisfiedCriteria: [], areaComplete: false, extracted: {} }),
+      json({ question: "Q", satisfiedCriteria: [], areaComplete: false, extracted: [] }),
     ]);
 
     await submitAnswer(llm, session.sessionId, "An answer.");
@@ -257,7 +257,7 @@ describe("§1.3 strategic brief", () => {
             "neverSay",
           ],
           areaComplete: true,
-          extracted: {},
+          extracted: [],
         }),
       ),
     );

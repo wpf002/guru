@@ -83,6 +83,39 @@ export class LlmRefusalError extends Error {
   }
 }
 
+/**
+ * Converts a Zod schema to the JSON Schema the structured-outputs API accepts.
+ *
+ * The API requires `additionalProperties: false` on every object and rejects
+ * any other value — including the `additionalProperties: {…}` that
+ * `zod-to-json-schema` emits for open-ended maps. That rejection is a 400 at
+ * request time, which means it is invisible to type checking and to any test
+ * with a scripted transport; the first real call is the first time you learn.
+ *
+ * So every object node is forced closed here. A schema that genuinely needs
+ * open keys has to be modelled as an array of pairs instead — see
+ * `IntakeFollowupSchema.extracted`.
+ */
+export function toStrictJsonSchema(schema: z.ZodType): Record<string, unknown> {
+  const json = zodToJsonSchema(schema, { target: "openApi3" }) as Record<string, unknown>;
+  return closeObjects(json) as Record<string, unknown>;
+}
+
+function closeObjects(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(closeObjects);
+  if (!node || typeof node !== "object") return node;
+
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    // Drop whatever it was; the only accepted value is `false`.
+    if (key === "additionalProperties") continue;
+    out[key] = closeObjects(value);
+  }
+
+  if (out.type === "object") out.additionalProperties = false;
+  return out;
+}
+
 export class LlmSchemaError extends Error {
   constructor(
     message: string,
@@ -172,7 +205,7 @@ export class GuruLlm {
             ? {
                 format: {
                   type: "json_schema" as const,
-                  schema: zodToJsonSchema(schema, { target: "openApi3" }),
+                  schema: toStrictJsonSchema(schema),
                 },
               }
             : {}),

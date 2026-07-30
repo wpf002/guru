@@ -42,10 +42,23 @@ export const IntakeFollowupSchema = z.object({
   /** Criteria the model believes the last answer satisfied. */
   satisfiedCriteria: z.array(z.string()),
   areaComplete: z.boolean(),
-  /** Structured extraction so far for this area. */
-  extracted: z.record(z.string(), z.unknown()),
+  /**
+   * Structured extraction so far, as key/value pairs rather than a free-form
+   * object. Structured outputs requires `additionalProperties: false` on every
+   * object, which is exactly what an open-ended map cannot have — so an
+   * open-key shape is expressed as an array and folded back into an object on
+   * arrival. See `pairsToObject`.
+   */
+  extracted: z.array(z.object({ key: z.string(), value: z.string() })),
 });
 export type IntakeFollowupOutput = z.infer<typeof IntakeFollowupSchema>;
+
+/** Folds the key/value array back into the object the rest of the code wants. */
+export function pairsToObject(
+  pairs: { key: string; value: string }[],
+): Record<string, string> {
+  return Object.fromEntries(pairs.map((p) => [p.key, p.value]));
+}
 
 export const RoadmapSchema = z.object({
   summary: z.string().min(1),

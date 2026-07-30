@@ -10,7 +10,7 @@ import {
   postingCadence,
 } from "@guru/core";
 import { CURRENT, render } from "@guru/prompts";
-import { IntakeFollowupSchema, type GuruLlm } from "@guru/llm";
+import { IntakeFollowupSchema, pairsToObject, type GuruLlm } from "@guru/llm";
 
 /**
  * The intake state machine — roadmap §1.2.
@@ -227,7 +227,7 @@ export async function submitAnswer(
       completedAt: complete ? new Date() : null,
       data: {
         ...((slot.data as Record<string, unknown> | null) ?? {}),
-        ...value.extracted,
+        ...pairsToObject(value.extracted),
       } as Prisma.InputJsonValue,
     },
   });
