@@ -65,4 +65,88 @@ describe("registry", () => {
       expect(getTemplate(t.name, t.version)).toBe(t);
     }
   });
+
+  it("does not grow the set of placeholders no one declared", () => {
+    // A placeholder that is interpolated but not declared is invisible to
+    // render()'s check, so omitting it ships the literal "{{documentSignal}}"
+    // into the prompt instead of throwing.
+    //
+    // These four are safe *today* only because every caller happens to pass them,
+    // with a fallback string when there is nothing to say. That is a property of
+    // the callers, not of the templates, and nothing enforces it. Published
+    // versions are immutable so they stay as they shipped; this list must not
+    // grow, and each entry should disappear when its template is next versioned.
+    const undeclared: string[] = [];
+    for (const t of ALL_TEMPLATES) {
+      const used = new Set([...t.template.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]!));
+      for (const name of used) {
+        if (!t.variables.includes(name)) undeclared.push(`${t.name}@${t.version}: ${name}`);
+      }
+    }
+
+    expect(undeclared.sort()).toEqual([
+      "content.draft@1.0.0: peerPatterns",
+      "content.draft@1.1.0: documentSignal",
+      "content.draft@1.1.0: peerPatterns",
+      "intake.followup@1.0.0: seededContext",
+    ]);
+  });
+
+  it("declares every placeholder in the newest intake prompt", () => {
+    // The fix for the above, applied where it is allowed to be applied: in the
+    // version that supersedes the one with the gap.
+    const t = getTemplate("intake.followup", "1.1.0");
+    const used = [...t.template.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]!);
+    for (const name of used) expect(t.variables).toContain(name);
+  });
+
+  it("keeps published versions byte-identical when a successor lands", () => {
+    // The audit trail claims a Generation used a specific version. Editing that
+    // version in place rewrites the explanation for work already shipped.
+    expect(getTemplate("intake.followup", "1.0.0").template).toContain(
+      "Ask ONE follow-up question that closes the most important open criterion.",
+    );
+    expect(getTemplate("intake.followup", "1.0.0").template).not.toContain(
+      "credit everything that is already answered",
+    );
+  });
+});
+
+describe("intake.followup@1.1.0", () => {
+  const current = CURRENT.intakeFollowup;
+
+  it("is what new intakes use", () => {
+    expect(current.version).toBe("1.1.0");
+  });
+
+  it("asks the model to credit before it asks", () => {
+    // The over-probing bug: v1.0.0 only ever credited the criterion its own
+    // question targeted, so an area with five required criteria cost five turns
+    // regardless of how much a single answer had already established.
+    const creditAt = current.template.indexOf("credit everything that is already answered");
+    const askAt = current.template.indexOf("ask one question");
+    expect(creditAt).toBeGreaterThan(-1);
+    expect(askAt).toBeGreaterThan(creditAt);
+  });
+
+  it("tells the model to read the whole transcript, not just the last answer", () => {
+    expect(current.template).toContain("not only the most recent answer");
+  });
+
+  it("still refuses to let the model decide the area is finished", () => {
+    // isSlotComplete owns that decision; a persuasive answer must not be able to
+    // close an area with required criteria still open.
+    expect(current.template).toContain("a separate system decides when this area is done");
+  });
+
+  it("renders with exactly the values the intake service passes", () => {
+    const rendered = render(current, {
+      areaTitle: "Who they are",
+      areaIntent: "Establish role, industry, niche.",
+      openCriteria: "- role: Current role",
+      seededContext: "(nothing seeded)",
+      transcript: "USER: I sell fractional ops leadership.",
+    });
+    expect(rendered).not.toContain("{{");
+  });
 });

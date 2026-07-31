@@ -14,7 +14,7 @@ pnpm dev
 LinkedIn credentials set. Google and the intel provider are not configured, and
 the app runs fine without them.
 
-Tests: `pnpm test` (196, no database) and `pnpm test:integration` (101, needs the
+Tests: `pnpm test` (204, no database) and `pnpm test:integration` (101, needs the
 database). Conformance suite asserts roadmap claims directly — see
 [TRACEABILITY.md](TRACEABILITY.md).
 
@@ -60,14 +60,33 @@ Two consequences worth knowing:
 
 1. **Ingest a real archive.** Everything downstream currently reasons about a
    network of zero. This is the largest gap between what the product claims and
-   what it has seen.
-2. **Intake over-probes.** It took six questions to close section 1 and eleven
-   overall. Every question was good, but that is too long. The fix is prompt
-   tuning in `intake.followup` — let it accept a sufficient answer sooner.
-3. **Intake UI loses the transcript on reload.** Session state resumes correctly;
+   what it has seen. Archive requested 31 Jul 2026; LinkedIn emails a link
+   within ~24h.
+2. **Intake UI loses the transcript on reload.** Session state resumes correctly;
    the conversation doesn't redraw. `IntakeClient` never fetches prior turns.
-4. **§1.6 needs the Community Management API** — a vetted application, weeks of
+3. **§1.6 needs the Community Management API** — a vetted application, weeks of
    review. Code is built behind `LINKEDIN_FEED_SCOPES_APPROVED`.
+
+## Fixed: intake over-probing
+
+`intake.followup@1.1.0`. v1.0.0 was written entirely around asking, and never
+told the model to credit criteria the conversation had *already* satisfied — so
+it credited only the one its own question targeted, and area 1's five required
+criteria cost five turns however much a single answer covered.
+
+Measured by replaying one set of realistic answers through both versions against
+the live model:
+
+| | v1.0.0 | v1.1.0 |
+|---|---|---|
+| Area 1 (who they are) | 8 questions | 0 |
+| Total | 11 | 4 |
+
+The 11 reproduces the original real intake exactly. v1.0.0 also turned
+adversarial once stuck — "you've dodged this four times now" — while pressing
+for an `offer` that does not exist for someone who is not selling anything.
+
+Add ~1 for the opening question the UI fetches before the first answer.
 
 ## Bugs found by running it for real
 

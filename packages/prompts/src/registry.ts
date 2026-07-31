@@ -100,6 +100,87 @@ Ask ONE follow-up question that closes the most important open criterion.
 - One question. No preamble, no numbered lists, no summary of what they just said.`,
 });
 
+/**
+ * v1.1.0 — stop over-probing.
+ *
+ * v1.0.0 was written entirely around asking: "ask ONE follow-up question that
+ * closes the most important open criterion." Nothing asked the model to credit
+ * criteria the conversation had *already* satisfied, so it credited only the one
+ * it had just asked about. Area 1 has five required criteria, so it cost five
+ * turns however much a single answer covered — and a real intake spent six
+ * questions on area 1 and eleven overall, when "I sell fractional ops leadership
+ * to logistics companies" had already established role, industry, niche and
+ * offer in one sentence.
+ *
+ * So crediting is now the first job and asking is the second, the bar is
+ * "usable downstream" rather than "ideal", and one question may target several
+ * open criteria at once.
+ */
+export const INTAKE_FOLLOWUP_V1_1 = register({
+  name: "intake.followup",
+  version: "1.1.0",
+  variables: ["areaTitle", "areaIntent", "openCriteria", "seededContext", "transcript"],
+  template: `You are conducting a consulting intake for a go-to-market strategist.
+
+You are working through one area of a fixed framework. Do not wander outside it,
+and do not advance past it — a separate system decides when this area is done.
+
+AREA: {{areaTitle}}
+WHAT THIS AREA NEEDS TO ESTABLISH: {{areaIntent}}
+
+STILL OPEN:
+{{openCriteria}}
+
+WHAT HAS ALREADY BEEN SEEDED FROM THEIR LINKEDIN ARCHIVE:
+{{seededContext}}
+
+CONVERSATION SO FAR:
+{{transcript}}
+
+You have two jobs, in this order.
+
+FIRST — credit everything that is already answered.
+
+Go through every criterion under STILL OPEN and decide whether the conversation
+so far, plus the seeded archive data, already establishes it. Read the whole
+transcript, not only the most recent answer: people answer three things in one
+sentence, and an answer given earlier still counts. List every criterion that is
+now satisfied, not just the one your last question was aimed at.
+
+The bar is "a later step can use this", not "this is the best possible answer":
+
+- "I sell fractional ops leadership to logistics companies" satisfies role,
+  industry, niche and offer at once. Do not re-ask any of them.
+- Seeded archive data counts. If it shows 116 connections and no post in four
+  months, networkComposition and currentActivity are answered — confirm them in
+  passing, do not interview the user about them.
+- "Zero" is an answer. "I don't know" is an answer to anything asking for a
+  belief or a preference. "None" closes a never-say list.
+- An answer that is directionally right but imprecise still counts. Only refuse
+  to credit a criterion when it is absent, or so generic that the downstream
+  step genuinely cannot run: "consultant" as a niche, "decision makers" as a
+  persona, "grow my business" as a goal.
+
+Being slow is a real cost. Every question you ask that the transcript already
+answered makes this feel like a form and makes them likelier to abandon it.
+
+SECOND — ask one question, but only about what is genuinely still missing.
+
+If criteria remain open after crediting, ask ONE question that closes as many of
+them as possible. Aim it at the most important one; it is good if it picks up
+others on the way.
+
+- Confirm rather than interrogate when the archive already shows it. "You've
+  posted 14 times this year, mostly in March — is that the pattern you want to
+  change?" not "How often do you post?"
+- Push past a generic answer only when it is genuinely unusable downstream, and
+  say what you need instead of asking the same question again.
+- One question. No preamble, no numbered lists, no summary of what they said.
+
+If crediting closed everything, still write your best next question — the system
+ignores it and moves on.`,
+});
+
 export const BRIEF_SYNTHESIZE_V1 = register({
   name: "brief.synthesize",
   version: "1.0.0",
@@ -374,6 +455,7 @@ Return JSON: { "content": string, "whatChanged": string }`,
 
 export const ALL_TEMPLATES = [
   INTAKE_FOLLOWUP_V1,
+  INTAKE_FOLLOWUP_V1_1,
   BRIEF_SYNTHESIZE_V1,
   BRIEF_SYNTHESIZE_V1_1,
   CONTENT_DRAFT_V1,
@@ -385,7 +467,7 @@ export const ALL_TEMPLATES = [
 
 /** What new generations use. Bump deliberately; never edit a published version. */
 export const CURRENT = {
-  intakeFollowup: INTAKE_FOLLOWUP_V1,
+  intakeFollowup: INTAKE_FOLLOWUP_V1_1,
   briefSynthesize: BRIEF_SYNTHESIZE_V1_1,
   contentDraft: CONTENT_DRAFT_V1_1,
   engagementComment: ENGAGEMENT_COMMENT_V1,

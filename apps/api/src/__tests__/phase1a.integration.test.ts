@@ -1,6 +1,7 @@
 import AdmZip from "adm-zip";
 import { beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@guru/db";
+import { CURRENT, getTemplate } from "@guru/prompts";
 import { ingestUpload, snapshotDelta } from "../services/archive-ingest.js";
 import { startIntake, submitAnswer } from "../services/intake.js";
 import { synthesizeBrief, activeBrief, editBrief } from "../services/brief.js";
@@ -303,12 +304,20 @@ describe("§1.2 intake state machine", () => {
 
     const generations = await prisma.generation.findMany({ where: { userId: user.id } });
     expect(generations).toHaveLength(1);
+    // The version is read from the registry rather than hardcoded: pinning a
+    // literal here makes every deliberate prompt bump look like a regression.
+    // What must hold is that the row records the version actually used, and
+    // that the version is one the registry can still resolve — that pairing is
+    // what makes a past generation replayable.
     expect(generations[0]).toMatchObject({
       purpose: "intake.followup",
-      promptName: "intake.followup",
-      promptVersion: "1.0.0",
+      promptName: CURRENT.intakeFollowup.name,
+      promptVersion: CURRENT.intakeFollowup.version,
       model: "claude-opus-5",
     });
+    expect(() =>
+      getTemplate(generations[0]!.promptName, generations[0]!.promptVersion),
+    ).not.toThrow();
   });
 });
 
