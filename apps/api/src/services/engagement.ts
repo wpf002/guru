@@ -154,10 +154,10 @@ export async function draftComment(
 
   // The brief's hard filters apply to comments exactly as they do to posts —
   // arguably more, since a comment appears under someone else's name.
-  assertConstraints(value.content, {
-    neverSay: brief.neverSay,
-    complianceFlags: brief.complianceFlags,
-  });
+  // Literal terms only. complianceFlags are descriptive rules that cannot be
+  // pattern-matched ("no real incident detail, even anonymised") — feeding them
+  // to a regex produces the illusion of enforcement, not enforcement.
+  assertConstraints(value.content, { neverSay: brief.neverSay, complianceFlags: [] });
 
   const voiceProfile = await prisma.voiceProfile.findFirst({
     where: { userId: target.userId, active: true },

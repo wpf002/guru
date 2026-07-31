@@ -80,10 +80,10 @@ export async function generateDraft(
   // Gate 1 — hard filters from the brief. Enforced here, not in the prompt: a
   // model that honours an instruction 99% of the time is a compliance incident
   // the other 1%.
-  assertConstraints(value.content, {
-    neverSay: brief.neverSay,
-    complianceFlags: brief.complianceFlags,
-  });
+  // Literal terms only. complianceFlags are descriptive rules that cannot be
+  // pattern-matched ("no real incident detail, even anonymised") — feeding them
+  // to a regex produces the illusion of enforcement, not enforcement.
+  assertConstraints(value.content, { neverSay: brief.neverSay, complianceFlags: [] });
 
   // Gate 2 — peer analysis is pattern-learning, not copying, and this is where
   // that claim is enforced. The score is recorded either way for audit.
@@ -165,10 +165,10 @@ export async function refineDraft(
     RefinementSchema,
   );
 
-  assertConstraints(value.content, {
-    neverSay: brief.neverSay,
-    complianceFlags: brief.complianceFlags,
-  });
+  // Literal terms only. complianceFlags are descriptive rules that cannot be
+  // pattern-matched ("no real incident detail, even anonymised") — feeding them
+  // to a regex produces the illusion of enforcement, not enforcement.
+  assertConstraints(value.content, { neverSay: brief.neverSay, complianceFlags: [] });
 
   const nextIndex = (draft.revisions[0]?.index ?? 0) + 1;
 
@@ -309,10 +309,7 @@ export async function reviewDraft(draftId: string) {
 
   const violations = [] as string[];
   try {
-    assertConstraints(draft.content, {
-      neverSay: brief.neverSay,
-      complianceFlags: brief.complianceFlags,
-    });
+    assertConstraints(draft.content, { neverSay: brief.neverSay, complianceFlags: [] });
   } catch (err) {
     violations.push((err as Error).message);
   }

@@ -1,5 +1,11 @@
 import { prisma, type Prisma, type StrategicBrief } from "@guru/db";
-import { analyzeNetwork, formatStats, analyzeVoice, postingCadence } from "@guru/core";
+import {
+  analyzeNetwork,
+  formatStats,
+  analyzeVoice,
+  partitionConstraints,
+  postingCadence,
+} from "@guru/core";
 import { CURRENT, render } from "@guru/prompts";
 import { BriefSchema, type GuruLlm } from "@guru/llm";
 
@@ -65,6 +71,7 @@ export async function synthesizeBrief(
   });
 
   const voiceSummary = await currentVoiceSummary(session.userId);
+  const blockable = partitionConstraints(value.neverSay);
 
   const brief = await prisma.strategicBrief.create({
     data: {
@@ -80,8 +87,11 @@ export async function synthesizeBrief(
       targetState: value.targetState as Prisma.InputJsonValue,
       persona: value.persona as Prisma.InputJsonValue,
       voiceProfileSummary: voiceSummary,
-      neverSay: value.neverSay,
-      complianceFlags: value.complianceFlags,
+      // Anything sentence-shaped is guidance, not a filter term. Storing it in
+      // neverSay would produce a hard filter that blocks nothing while looking
+      // configured — see partitionConstraints.
+      neverSay: blockable.terms,
+      complianceFlags: [...value.complianceFlags, ...blockable.guidance],
     },
   });
 

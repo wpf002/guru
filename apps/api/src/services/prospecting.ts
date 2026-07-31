@@ -138,10 +138,7 @@ introduction. Write the message.`,
     OutreachDraftSchema,
   );
 
-  assertConstraints(value.message, {
-    neverSay: brief.neverSay,
-    complianceFlags: brief.complianceFlags,
-  });
+  assertConstraints(value.message, { neverSay: brief.neverSay, complianceFlags: [] });
 
   const updated = await prisma.prospectTarget.update({
     where: { id: prospectId },

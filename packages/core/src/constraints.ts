@@ -63,6 +63,50 @@ export function checkConstraints(
   return { ok: violations.length === 0, violations };
 }
 
+/**
+ * Splits a never-say list into things a regex can actually block and things it
+ * cannot.
+ *
+ * The filter matches literal text, so "Las Vegas Sands" blocks a post naming the
+ * employer and "never name the employer in a security context" blocks nothing —
+ * that sentence will never appear in a draft. Both look identical in a stored
+ * brief, which is how a hard filter ends up enforcing nothing while appearing
+ * configured.
+ *
+ * The prompt asks for terms. This is the guard for when it doesn't comply:
+ * sentence-like entries are moved to guidance, where they still shape
+ * generation but stop pretending to be enforcement.
+ */
+export interface PartitionedConstraints {
+  /** Literal strings the filter can block. */
+  terms: string[];
+  /** Descriptive rules — routed to the prompt, never to the matcher. */
+  guidance: string[];
+}
+
+export function partitionConstraints(entries: readonly string[]): PartitionedConstraints {
+  const terms: string[] = [];
+  const guidance: string[] = [];
+
+  for (const raw of entries) {
+    const entry = raw.trim();
+    if (!entry) continue;
+
+    const words = entry.split(/\s+/).length;
+    // A blockable term is a name or a phrase. Past about six words it is prose,
+    // and prose that also contains an instruction verb is certainly a rule.
+    const looksLikeProse =
+      words > 6 ||
+      /^(never|don't|do not|avoid|no |nothing|anything|naming|sharing|criticis|assume|keep|use )/i.test(
+        entry,
+      );
+
+    (looksLikeProse ? guidance : terms).push(entry);
+  }
+
+  return { terms, guidance };
+}
+
 export class ConstraintViolationError extends Error {
   constructor(readonly violations: Violation[]) {
     super(

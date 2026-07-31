@@ -3,6 +3,7 @@ import {
   ConstraintViolationError,
   assertConstraints,
   checkConstraints,
+  partitionConstraints,
 } from "../constraints.js";
 
 const brief = { neverSay: ["guaranteed", "passive income"], complianceFlags: ["ROI"] };
@@ -66,5 +67,44 @@ describe("assertConstraints", () => {
 
   it("is silent on clean copy", () => {
     expect(() => assertConstraints("clean copy", brief)).not.toThrow();
+  });
+});
+
+describe("partitionConstraints", () => {
+  it("keeps names and short phrases as blockable terms", () => {
+    const { terms } = partitionConstraints(["Las Vegas Sands", "Sands", "PCI-DSS"]);
+    expect(terms).toEqual(["Las Vegas Sands", "Sands", "PCI-DSS"]);
+  });
+
+  it("moves descriptive rules out of the filter", () => {
+    // This is the bug it exists for: fed to a regex, the sentence matches
+    // nothing, so the hard filter passes a post that names the employer.
+    const { terms, guidance } = partitionConstraints([
+      "Las Vegas Sands",
+      "Naming the employer (Las Vegas Sands) in a security context at all",
+      "No real incident detail, even anonymised",
+    ]);
+
+    expect(terms).toEqual(["Las Vegas Sands"]);
+    expect(guidance).toHaveLength(2);
+  });
+
+  it("catches instruction-shaped entries even when they are short", () => {
+    const { terms, guidance } = partitionConstraints(["Never name clients", "Acme Corp"]);
+    expect(terms).toEqual(["Acme Corp"]);
+    expect(guidance).toEqual(["Never name clients"]);
+  });
+
+  it("drops blanks", () => {
+    expect(partitionConstraints(["", "   "]).terms).toEqual([]);
+  });
+
+  it("still blocks the employer once partitioned", () => {
+    const { terms } = partitionConstraints([
+      "Las Vegas Sands",
+      "Naming the employer in a security context at all",
+    ]);
+    const post = "At Las Vegas Sands we drop a lot of firewall logs.";
+    expect(checkConstraints(post, { neverSay: terms, complianceFlags: [] }).ok).toBe(false);
   });
 });

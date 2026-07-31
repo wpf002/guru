@@ -139,6 +139,66 @@ Rules:
   (how often they post, who they know) and prefer them for intent.`,
 });
 
+/**
+ * v1.1.0 splits blockable terms from descriptive rules.
+ *
+ * v1.0.0 asked for a "never-say list" and got sentences like "never name the
+ * employer in a security context". Those go into a regex, so they match
+ * nothing — the §1.3 hard filter was passing posts that named the employer
+ * outright. Terms and guidance are now separate fields with separate jobs.
+ */
+export const BRIEF_SYNTHESIZE_V1_1 = register({
+  name: "brief.synthesize",
+  version: "1.1.0",
+  variables: ["transcript", "archiveSummary"],
+  template: `Synthesize a structured strategic brief from this intake conversation.
+
+INTAKE TRANSCRIPT:
+{{transcript}}
+
+WHAT THEIR LINKEDIN ARCHIVE SHOWS:
+{{archiveSummary}}
+
+Return JSON matching this shape:
+{
+  "role": string,
+  "industry": string,
+  "niche": string,
+  "subNiche": string,
+  "offer": string,
+  "currentState": { "activity": string, "network": string, "leadFlow": string },
+  "targetState": { "goals": string, "outcomes": string[], "timeline": string },
+  "persona": { "description": string, "signals": string[] },
+  "neverSay": string[],
+  "complianceFlags": string[]
+}
+
+Rules:
+- Use their words for the offer and the goals. This document gets shown back to
+  them, and a brief that sounds like a consultant's summary rather than like
+  them will get edited into one anyway.
+- "persona.signals" must be observable on a LinkedIn profile — title, company
+  size, industry, seniority. They are used to score a connection list, so
+  anything unobservable is useless here.
+
+- "neverSay" is a list of LITERAL STRINGS that must never appear in generated
+  output. It is matched against the text with a regex, so write the words
+  themselves, not a description of them:
+      correct:   "Las Vegas Sands", "Sands", "PCI-DSS"
+      useless:   "never name the employer in a security context"
+  Include every name, brand, product and phrase they said they will not say,
+  and the obvious variants of each. If they ruled out a topic rather than a
+  word, put the words that topic would have to use.
+
+- "complianceFlags" is for rules that shape writing but cannot be matched as
+  text — "no real incident detail, even anonymised", "criticise a pattern, not
+  a product", tone constraints. These guide generation; they are not filters.
+
+- Do not invent cautious-sounding additions to either list.
+- Where the archive contradicts what they said, prefer the archive for facts
+  (how often they post, who they know) and prefer them for intent.`,
+});
+
 export const CONTENT_DRAFT_V1 = register({
   name: "content.draft",
   version: "1.0.0",
@@ -315,6 +375,7 @@ Return JSON: { "content": string, "whatChanged": string }`,
 export const ALL_TEMPLATES = [
   INTAKE_FOLLOWUP_V1,
   BRIEF_SYNTHESIZE_V1,
+  BRIEF_SYNTHESIZE_V1_1,
   CONTENT_DRAFT_V1,
   CONTENT_DRAFT_V1_1,
   ENGAGEMENT_COMMENT_V1,
@@ -325,7 +386,7 @@ export const ALL_TEMPLATES = [
 /** What new generations use. Bump deliberately; never edit a published version. */
 export const CURRENT = {
   intakeFollowup: INTAKE_FOLLOWUP_V1,
-  briefSynthesize: BRIEF_SYNTHESIZE_V1,
+  briefSynthesize: BRIEF_SYNTHESIZE_V1_1,
   contentDraft: CONTENT_DRAFT_V1_1,
   engagementComment: ENGAGEMENT_COMMENT_V1,
   voiceSummary: VOICE_SUMMARY_V1,

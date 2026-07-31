@@ -32,7 +32,19 @@ export const BriefSchema = z.object({
     // Connection rows, so an unobservable signal is dead weight.
     signals: z.array(z.string()).min(1),
   }),
+  /**
+   * Literal strings that must not appear in generated output. These are fed
+   * straight to a regex, so they have to be the *words themselves* — "Las Vegas
+   * Sands", not "never name the employer". A descriptive sentence here silently
+   * blocks nothing, because the sentence never appears in a post.
+   */
   neverSay: z.array(z.string()),
+  /**
+   * Descriptive rules that shape generation but cannot be pattern-matched —
+   * "no real incident detail, even anonymised". These reach the prompt; they
+   * are deliberately *not* passed to the filter, because doing so produces the
+   * illusion of enforcement.
+   */
   complianceFlags: z.array(z.string()),
 });
 export type BriefOutput = z.infer<typeof BriefSchema>;
