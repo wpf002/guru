@@ -20,13 +20,23 @@ import type { Env } from "../env.js";
  */
 
 const STATE_COOKIE = "li_oauth_state";
+/**
+ * Which local user this connection belongs to.
+ *
+ * Without it the callback has only the LinkedIn profile to go on, so it keys the
+ * user row on the LinkedIn email. That silently forks the account whenever the
+ * local user was created with any other address: intake, brief, and archive stay
+ * on the original row while the token lands on a brand-new one, and the product
+ * reports "connected" while every downstream read comes back empty.
+ */
+const USER_COOKIE = "li_oauth_user";
 const STATE_TTL_SECONDS = 600;
 
 export async function linkedinAuthRoutes(app: FastifyInstance, env: Env) {
   const linkedin = env.linkedin;
 
   /** Step 1 — redirect to LinkedIn's consent screen. */
-  app.get("/auth/linkedin/start", async (request, reply) => {
+  app.get<{ Querystring: { userId?: string } }>("/auth/linkedin/start", async (request, reply) => {
     if (!linkedin) {
       return reply.code(503).send({
         error:
@@ -35,13 +45,26 @@ export async function linkedinAuthRoutes(app: FastifyInstance, env: Env) {
     }
     const state = generateState();
 
-    reply.setCookie(STATE_COOKIE, state, {
+    const cookieOptions = {
       httpOnly: true,
       secure: env.nodeEnv === "production",
-      sameSite: "lax",
+      sameSite: "lax" as const,
       path: "/",
       maxAge: STATE_TTL_SECONDS,
-    });
+    };
+
+    reply.setCookie(STATE_COOKIE, state, cookieOptions);
+
+    // Verified here rather than in the callback: a bad userId should fail before
+    // the user is sent to consent, not after they have granted access.
+    const { userId } = request.query;
+    if (userId) {
+      const exists = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+      if (!exists) return reply.code(404).send({ error: `No user with id ${userId}.` });
+      reply.setCookie(USER_COOKIE, userId, cookieOptions);
+    } else {
+      reply.clearCookie(USER_COOKIE, { path: "/" });
+    }
 
     return reply.redirect(authorizationUrl(linkedin, state));
   });
@@ -72,13 +95,29 @@ export async function linkedinAuthRoutes(app: FastifyInstance, env: Env) {
         const tokens = await exchangeCode(linkedin, code);
         const profile = await fetchProfile(tokens.accessToken);
 
-        // Multi-tenant schema, single-tenant UX (§0.7): the user row is keyed on
-        // email, and every downstream table hangs off its id.
-        const user = await prisma.user.upsert({
-          where: { email: profile.email ?? `${profile.sub}@linkedin.local` },
-          update: { name: profile.name },
-          create: { email: profile.email ?? `${profile.sub}@linkedin.local`, name: profile.name },
-        });
+        // Multi-tenant schema, single-tenant UX (§0.7): every downstream table
+        // hangs off the user id, so attaching to the *wrong* row is worse than
+        // failing to attach at all.
+        //
+        // When the flow was started for a known user, that binding wins. The
+        // email upsert is the fallback for a first-time connection with no local
+        // user yet — it must not be allowed to fork an existing one.
+        const boundUserId = request.cookies[USER_COOKIE];
+        reply.clearCookie(USER_COOKIE, { path: "/" });
+
+        const user = boundUserId
+          ? await prisma.user.update({
+              where: { id: boundUserId },
+              data: { name: profile.name },
+            })
+          : await prisma.user.upsert({
+              where: { email: profile.email ?? `${profile.sub}@linkedin.local` },
+              update: { name: profile.name },
+              create: {
+                email: profile.email ?? `${profile.sub}@linkedin.local`,
+                name: profile.name,
+              },
+            });
 
         const tokenData = {
           linkedinSub: profile.sub,

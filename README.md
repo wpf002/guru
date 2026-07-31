@@ -21,9 +21,10 @@ roadmap and reality diverge.
 ## Status
 
 Every phase in the roadmap is implemented, the schema is migrated onto a real
-Postgres, and every phase's service layer is exercised against it. What remains
-unverified is the third-party edge — no LinkedIn, Google, or Anthropic call has
-been made. See [What is unverified](#what-is-unverified).
+Postgres, and every phase's service layer is exercised against it. LinkedIn OAuth
+and the model layer have both been exercised against the real services; Google
+and the intel provider have not, and nothing has been published yet. See
+[What is verified, and what is not](#what-is-verified-and-what-is-not).
 
 | Roadmap | Component | State |
 |---|---|---|
@@ -52,7 +53,7 @@ been made. See [What is unverified](#what-is-unverified).
 | §5 | Customer/operator classification (Phase 1 hedge) | ✅ built |
 | §9 | Metrics: weekly report, archive-derived, edits/draft | ✅ built |
 
-**157 unit tests** and **67 integration tests against a live Postgres**, all
+**196 unit tests** and **101 integration tests against a live Postgres**, all
 passing. `apps/web` and `apps/api` both build; the API boots against the real
 database and serves every route.
 
@@ -144,19 +145,23 @@ similarity, scoring — under unit test.
 
 **Not verified.** The third-party edge:
 
-- **No LinkedIn API call has been made** beyond credential validation. The OAuth
-  flow and the publish/comment/react client are written to the documented
-  contract but not exercised. Request/response shapes and the version pin were
-  re-checked against LinkedIn's current docs in July 2026 — which caught a
-  sunset API version and a wrong scope assumption, both since fixed.
+- **OAuth is exercised; publishing is not.** A real account is connected with
+  `openid profile email w_member_social`, and the token is envelope-encrypted at
+  rest. The publish/comment/react client is written to the documented contract
+  but has never been called, so nothing has been posted. LinkedIn issued no
+  refresh token — self-serve apps don't get one — so the connection expires
+  after 60 days and `needsReauth` is the only thing that surfaces it.
 - **No Gmail or Drive call has been made.** The archive-link patterns are
   matched against realistic samples, not against a real LinkedIn email.
-- **No model call has been made.** Every test scripts the transport, so the
-  prompts themselves are unexercised — output *shape* is enforced by schema,
-  output *quality* is unknown.
+- **Model calls are exercised, but not by the tests.** A real intake and brief
+  were generated against the live API. Every *test* still scripts the transport,
+  so prompt quality is not covered by anything automated — output *shape* is
+  enforced by schema, output *quality* is judged by reading it.
 
-Each of these needs a credential nobody has issued yet, and the first is gated
-on the Company Page (§0.6).
+Google and the intel provider still need a credential nobody has issued. The
+LinkedIn side is live: Company Page → Developer Portal app → both self-serve
+products → a completed OAuth round trip. Current state is tracked in
+[docs/STATE.md](docs/STATE.md).
 
 ---
 

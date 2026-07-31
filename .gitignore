@@ -22,3 +22,6 @@ Shares.csv
 *.log
 .vscode/
 .idea/
+
+# TypeScript incremental build output
+*.tsbuildinfo

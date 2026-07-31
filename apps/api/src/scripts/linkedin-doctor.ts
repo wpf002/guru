@@ -159,7 +159,12 @@ async function probeCredentials(
     };
   }
 
-  if (lower.includes("invalid_client_secret") || lower.includes("invalid client secret")) {
+  // Verified against the live endpoint: a wrong or truncated secret comes back
+  // as `invalid_client` / "Client authentication failed" — *not*
+  // `invalid_client_secret`, which LinkedIn does not appear to emit at all.
+  // Matching only the latter made this check pass for any secret whatsoever,
+  // which is worse than not checking.
+  if (lower.includes("invalid_client") || lower.includes("client authentication failed")) {
     return {
       level: "fail",
       message:
@@ -168,11 +173,27 @@ async function probeCredentials(
     };
   }
 
-  // Any other outcome means the client was recognised: either the grant
-  // succeeded, or LinkedIn objected to something downstream of identity.
+  // The expected success shape: authentication passed, and LinkedIn refused the
+  // grant itself because self-serve apps are not entitled to application
+  // tokens. Refusing *this* far in proves the id and secret were accepted.
+  if (lower.includes("application tokens") || lower.includes("access_denied")) {
+    return {
+      level: "ok",
+      message: "LinkedIn accepted this client ID and secret.",
+    };
+  }
+
+  if (res.ok) {
+    return { level: "ok", message: "LinkedIn accepted this client ID and secret." };
+  }
+
+  // Anything else is unclassified. Do not call it a pass — an unrecognised
+  // error shape is exactly how the previous false pass happened.
   return {
-    level: "ok",
-    message: `LinkedIn recognises this client ID and secret (probe returned ${res.status}).`,
+    level: "warn",
+    message:
+      `Could not classify LinkedIn's response (HTTP ${res.status}): ${body.slice(0, 200)}. ` +
+      "Treat the credentials as unverified and test the consent URL.",
   };
 }
 

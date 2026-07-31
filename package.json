@@ -12,7 +12,7 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "test": "turbo run test",
+    "test": "vitest run",
     "test:integration": "pnpm --filter @guru/api exec vitest run",
     "db:up": "docker start guru-postgres 2>/dev/null || docker run -d --name guru-postgres -e POSTGRES_USER=guru -e POSTGRES_PASSWORD=guru -e POSTGRES_DB=guru -p 5439:5432 postgres:16-alpine",
     "db:down": "docker stop guru-postgres",
