@@ -1,14 +1,28 @@
-import { API_URL, apiGet } from "../../lib/api";
+import { apiGet } from "../../lib/api";
 import { requireSession } from "../../lib/session";
+import { ArchiveUpload } from "./ArchiveUpload";
 
 /**
  * Archive setup and status — roadmap §1.1.
  *
- * The honest version of "zero user steps": LinkedIn emails a link, not a file,
- * and that link usually needs the member's own session. When Guru can fetch it,
- * this page just shows the result. When it can't, it hands over the exact link
- * rather than failing quietly.
+ * §1.1 targets "archive email -> parsed profile with zero user steps". Running it
+ * for real killed that: LinkedIn sent **no email at all**. The settings page
+ * showed the archive ready for two days while the inbox stayed empty, and other
+ * LinkedIn mail arrived normally throughout. There is nothing to watch for.
+ *
+ * There is also no API alternative. The Connections API needs `r_1st_connections`,
+ * which no self-serve product grants, and Member Data Portability is EEA-only.
+ * The export is the only route to connection and history data, and LinkedIn does
+ * not automate it.
+ *
+ * So this page does the only thing that actually helps: link straight to the
+ * right screen, name the one option that includes connections, and say plainly
+ * that no email is coming and they should return here. Two clicks on LinkedIn,
+ * one file drop here.
  */
+
+/** Verified working — the menu path in the old copy sent people hunting. */
+const LINKEDIN_DOWNLOAD_URL = "https://www.linkedin.com/mypreferences/d/download-my-data";
 
 interface Snapshot {
   id: string;
@@ -49,37 +63,50 @@ export default async function ArchivePage({
             : "We could not connect that account."}
         </p>
       ) : null}
-      {connected ? <p className="callout">Gmail connected — Guru will watch for the archive email.</p> : null}
+      {connected ? <p className="callout">Gmail connected.</p> : null}
 
       <section className="checkpoint">
-        <h2>Step 1 — request it from LinkedIn</h2>
-        <ol>
-          <li>
-            Open <strong>Settings &rarr; Data privacy &rarr; Get a copy of your data</strong>.
-          </li>
-          <li>
-            Choose the <strong>larger archive</strong>. Your connections are only in that
-            one — the quick-select files do not include them.
-          </li>
-          <li>
-            LinkedIn sends it in two emails. The first arrives within minutes and has your
-            connections; the rest follows later.
-          </li>
-        </ol>
-
-        <h2>Step 2 — let Guru pick it up</h2>
+        <h2>First visit — ask LinkedIn for it</h2>
         <p>
-          With Gmail connected, Guru watches for those two emails and ingests them. It
-          only ever reads mail from LinkedIn matching that subject, and the access is
-          read-only.
+          The button opens the exact page. Pick{" "}
+          <strong>&ldquo;Download larger data archive&rdquo;</strong> — the top option.
+          It is the only one that includes your connections; the checkbox list below it
+          does not.
         </p>
-        <a className="button" href={`${API_URL}/auth/google/start`}>
-          Connect Gmail
+        <a className="button" href={LINKEDIN_DOWNLOAD_URL} target="_blank" rel="noreferrer">
+          Open LinkedIn&rsquo;s download page
         </a>
         <p className="note">
-          Prefer not to? Skip it — download the ZIP yourself and upload it below. Same
-          result, one extra step.
+          Then click <strong>Request archive</strong> and close the tab. Nothing else to
+          do. It usually takes a few hours.
         </p>
+
+        <h2>Second visit — bring it back</h2>
+        <p>
+          <strong>LinkedIn will not email you.</strong> We tested this: the archive sat
+          ready for two days and no message ever arrived, while ordinary LinkedIn mail
+          kept coming. Do not wait for one.
+        </p>
+        <p>
+          Come back to this page later, open the same link, and the button there will say{" "}
+          <strong>Download archive</strong>. Save the ZIP and drop it below — you do not
+          need to unzip it.
+        </p>
+        <a className="button secondary" href={LINKEDIN_DOWNLOAD_URL} target="_blank" rel="noreferrer">
+          Check whether it&rsquo;s ready
+        </a>
+      </section>
+
+      <section className="checkpoint">
+        <h2>Meanwhile, don&rsquo;t wait</h2>
+        <p>
+          Intake, your brief and your first roadmap all run without the archive. Start
+          now; uploading it later sharpens what Guru already knows rather than unblocking
+          it.
+        </p>
+        <a className="button secondary" href="/intake">
+          Start the intake
+        </a>
       </section>
 
       {needsDownload ? (
@@ -101,12 +128,7 @@ export default async function ArchivePage({
       ) : null}
 
       <h2>Upload</h2>
-      <form action={`${API_URL}/archive/upload`} method="post" encType="multipart/form-data">
-        <input type="file" name="archive" accept=".zip" required />
-        <button className="button" type="submit">
-          Upload archive
-        </button>
-      </form>
+      <ArchiveUpload />
 
       <h2>History</h2>
       {snapshots.length === 0 ? (

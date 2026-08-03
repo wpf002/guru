@@ -2,21 +2,25 @@ import Link from "next/link";
 import { currentUser } from "../lib/api";
 import { SignOut } from "./SignOut";
 
+// Ordered by what to do first, not by what the pipeline depends on. The archive
+// takes hours on LinkedIn's side, so it is requested early and used late —
+// listing it second made a background wait look like a prerequisite, which it
+// is not: intake, brief and roadmap all run without it.
 const STEPS = [
   {
-    href: "/connect",
-    title: "Connect LinkedIn",
-    body: "Read-only identity, plus permission to post and comment — only ever on things you have approved.",
-  },
-  {
     href: "/archive",
-    title: "Bring in your archive",
-    body: "Connections, posting history, and every comment you have left. This is what lets Guru write in your voice on day one.",
+    title: "Request your archive",
+    body: "Two clicks on LinkedIn, then forget about it. It takes a few hours, and no email will arrive — you come back for it. Nothing below waits on this.",
   },
   {
     href: "/intake",
     title: "Do the intake",
-    body: "Five areas, one at a time. Two arrive mostly answered because Guru already read your archive.",
+    body: "Five or six questions. Start it now, while the archive is building.",
+  },
+  {
+    href: "/connect",
+    title: "Connect LinkedIn",
+    body: "Only needed when you want Guru to publish for you. Read-only identity, plus permission to post — only ever on things you have approved.",
   },
   {
     href: "/review",

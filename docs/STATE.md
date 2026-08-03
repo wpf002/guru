@@ -223,6 +223,32 @@ not have caught:
   others answered 503 before checking auth, telling anonymous callers whether
   Google or LinkedIn is configured.
 
+## Archive onboarding, rewritten (3 Aug 2026)
+
+The archive page told users to navigate LinkedIn's menus by hand and then said
+"LinkedIn sends it in two emails. The first arrives within minutes." That is
+false — no email arrives at all — and it offered to connect Gmail to watch for
+it. A new user following those instructions waits forever for a signal that
+never comes.
+
+It now links straight to
+`https://www.linkedin.com/mypreferences/d/download-my-data`, names the one
+option that includes connections, says plainly that no email is coming, and
+tells them to come back. Upload moved off a cross-origin HTML form (which
+navigated away and rendered raw JSON) onto a client component that stays put and
+reports what was read — including "no connections in that file, you probably
+picked the quick archive".
+
+The home page also listed LinkedIn and the archive as steps 1 and 2, which read
+as prerequisites. Neither is: intake, brief, roadmap and drafting all run with
+no archive and no LinkedIn. Reordered so the hours-long wait starts first and
+runs in the background.
+
+Why this cannot be automated away: the Connections API needs
+`r_1st_connections`, which no self-serve product grants, and Member Data
+Portability is EEA-only. The export is the only route to network data outside
+Europe, and LinkedIn does not automate it for anyone.
+
 ## Bugs found by running it for real
 
 Nine features were fully implemented, type-checked and passing tests while
