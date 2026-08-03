@@ -131,7 +131,10 @@ export function IntakeClient() {
     setBusy(true);
     try {
       await post(`/intake/${state.sessionId}/brief`);
-      location.href = "/dashboard";
+      // The next step in the flow, not the app. This was pointing at /dashboard
+      // from before setup was a sequence, so finishing intake threw the user
+      // out of setup two steps early.
+      location.href = "/setup/brief";
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setBusy(false);
