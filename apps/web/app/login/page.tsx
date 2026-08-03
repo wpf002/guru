@@ -15,17 +15,12 @@ export default async function LoginPage({
   return (
     <main className="page centered">
       <h1>Guru</h1>
-      <p className="lede">
-        Sign in to reach your strategy, drafts, and archive. Everything is scoped to your
-        account — nothing here is shared between users.
-      </p>
+      <p className="lede">Your strategy, drafts and archive.</p>
 
       <LoginForm initialMode={mode === "signup" ? "signup" : "login"} />
 
       <p className="note">
-        LinkedIn is optional and comes later. The archive is a file you upload, and intake,
-        brief, roadmap and drafting all run without connecting anything — you only need
-        LinkedIn when you want Guru to publish for you.
+        LinkedIn is optional. You only need it to publish.
       </p>
     </main>
   );

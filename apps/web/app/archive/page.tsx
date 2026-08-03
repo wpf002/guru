@@ -51,9 +51,8 @@ export default async function ArchivePage({
     <main className="page">
       <h1>Your LinkedIn archive</h1>
       <p className="lede">
-        The export is richer than any API tier returns: every connection, every post,
-        every comment you have ever left. The comments are what let Guru write in your
-        voice on day one instead of after months of corrections.
+        Your connections, posts and comments. LinkedIn only gives these out as a file
+        you request yourself.
       </p>
 
       {error ? (
@@ -66,46 +65,30 @@ export default async function ArchivePage({
       {connected ? <p className="callout">Gmail connected.</p> : null}
 
       <section className="checkpoint">
-        <h2>First visit — ask LinkedIn for it</h2>
+        <h2>1 &middot; Request it</h2>
         <p>
-          The button opens the exact page. Pick{" "}
-          <strong>&ldquo;Download larger data archive&rdquo;</strong> — the top option.
-          It is the only one that includes your connections; the checkbox list below it
-          does not.
+          Pick <strong>Download larger data archive</strong> — the top option. Only that
+          one has your connections. Then <strong>Request archive</strong>.
         </p>
         <a className="button" href={LINKEDIN_DOWNLOAD_URL} target="_blank" rel="noreferrer">
-          Open LinkedIn&rsquo;s download page
+          Open LinkedIn
         </a>
-        <p className="note">
-          Then click <strong>Request archive</strong> and close the tab. Nothing else to
-          do. It usually takes a few hours.
-        </p>
 
-        <h2>Second visit — bring it back</h2>
+        <h2>2 &middot; Come back for it</h2>
         <p>
-          <strong>LinkedIn will not email you.</strong> We tested this: the archive sat
-          ready for two days and no message ever arrived, while ordinary LinkedIn mail
-          kept coming. Do not wait for one.
-        </p>
-        <p>
-          Come back to this page later, open the same link, and the button there will say{" "}
-          <strong>Download archive</strong>. Save the ZIP and drop it below — you do not
-          need to unzip it.
+          Takes a few hours. <strong>No email arrives</strong> — check the same page, and
+          the button will say Download archive. Drop the ZIP below without unzipping it.
         </p>
         <a className="button secondary" href={LINKEDIN_DOWNLOAD_URL} target="_blank" rel="noreferrer">
-          Check whether it&rsquo;s ready
+          Check if it&rsquo;s ready
         </a>
       </section>
 
       <section className="checkpoint">
-        <h2>Meanwhile, don&rsquo;t wait</h2>
-        <p>
-          Intake, your brief and your first roadmap all run without the archive. Start
-          now; uploading it later sharpens what Guru already knows rather than unblocking
-          it.
-        </p>
+        <h2>Don&rsquo;t wait for it</h2>
+        <p>Intake works without the archive. The file only sharpens what Guru has.</p>
         <a className="button secondary" href="/intake">
-          Start the intake
+          Start intake
         </a>
       </section>
 

@@ -11,10 +11,9 @@ export default async function IntakePage({
 
   return (
     <main className="page wide">
-      <h1>Consulting intake</h1>
+      <h1>Intake</h1>
       <p className="lede">
-        Five areas, one at a time. Guru already knows your network and how you write, so
-        two of them start mostly answered. You can stop and come back — nothing is lost.
+        Five areas. Two are pre-filled from your archive. Stop and come back any time.
       </p>
       <IntakeClient />
     </main>

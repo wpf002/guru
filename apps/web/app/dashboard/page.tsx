@@ -62,9 +62,8 @@ export default async function DashboardPage({
 
       <h2>Confidence by category</h2>
       <p className="lede">
-        Guru scores itself separately on each dimension, weighted toward your recent
-        decisions. A category with too few decisions shows no score rather than a zero —
-        those are different things.
+        Scored per category from your recent decisions. Too few decisions shows no score,
+        not zero.
       </p>
 
       <div className="grid">
@@ -109,7 +108,7 @@ export default async function DashboardPage({
           value={metrics?.internal.editsPerDraft.current?.toFixed(2) ?? "—"}
           note={
             metrics?.internal.editsPerDraft.improving === null
-              ? "Needs two periods to compare"
+              ? "Needs two periods"
               : metrics?.internal.editsPerDraft.improving
                 ? "Down on last period — the voice model is landing closer"
                 : "Up on last period"
@@ -128,7 +127,7 @@ export default async function DashboardPage({
               ? "—"
               : `${Math.round(metrics.internal.newConnectionFitRatio * 100)}%`
           }
-          note="Measured on new connections only, not the whole network"
+          note="New connections only"
         />
       </div>
 

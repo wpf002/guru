@@ -170,7 +170,7 @@ export async function confidenceDashboard(userId: string): Promise<Dashboard> {
       meetsThreshold,
       note:
         score === null
-          ? `Not enough data yet — ${minSampleSize - sampleSize} more decisions needed.`
+          ? `${minSampleSize - sampleSize} more decisions needed`
           : null,
     };
   });

@@ -9,27 +9,27 @@ const STEPS = [
   {
     href: "/archive",
     title: "Request your archive",
-    body: "Two clicks on LinkedIn, then forget about it. It takes a few hours, and no email will arrive — you come back for it. Nothing below waits on this.",
+    body: "Two clicks on LinkedIn. Takes a few hours. Nothing below waits on it.",
   },
   {
     href: "/intake",
     title: "Do the intake",
-    body: "Five or six questions. Start it now, while the archive is building.",
+    body: "Five or six questions. Do it now.",
   },
   {
     href: "/connect",
     title: "Connect LinkedIn",
-    body: "Only needed when you want Guru to publish for you. Read-only identity, plus permission to post — only ever on things you have approved.",
+    body: "Only for publishing. Nothing goes out without your approval.",
   },
   {
     href: "/review",
     title: "Review drafts",
-    body: "Every post and comment shows the strategy it serves. Nothing goes out without you.",
+    body: "Each draft shows the strategy it serves.",
   },
   {
     href: "/dashboard",
     title: "Watch it learn",
-    body: "Confidence by category, and whether the edits you make per draft are going down.",
+    body: "Confidence per category, and whether your edits are shrinking.",
   },
 ];
 
@@ -43,9 +43,8 @@ export default async function Home() {
       <main className="page centered">
         <h1>Guru</h1>
         <p className="lede">
-          A go-to-market strategist that lives on top of your LinkedIn presence. It learns
-          your niche, your network, and how you actually write — then proposes the
-          strategy, the posts, and the comments that execute it.
+          A go-to-market strategist for LinkedIn. It learns your niche, your network and
+          how you write, then proposes the strategy and the posts that execute it.
         </p>
         <p>
           <Link className="button" href="/login?mode=signup">
@@ -54,10 +53,8 @@ export default async function Home() {
           <Link href="/login">or sign in</Link>
         </p>
         <p className="note">
-          Guru does not send connection requests or DMs. There is no compliant API for
-          either, and the tools that claim otherwise put your account at risk — which is
-          the one asset this is all meant to grow. It builds the list and drafts the
-          message; you press send.
+          No automated connection requests or DMs — there is no compliant API for either.
+          Guru drafts the message; you press send.
         </p>
       </main>
     );
@@ -67,9 +64,7 @@ export default async function Home() {
     <main className="page">
       <h1>Welcome back</h1>
       <p className="lede">
-        A go-to-market strategist that lives on top of your LinkedIn presence. It learns
-        your niche, your network, and how you actually write — then proposes the strategy,
-        the posts, and the comments that execute it.
+        Strategy first, then the posts and comments that execute it.
       </p>
 
       {STEPS.map((step, i) => (
@@ -83,10 +78,7 @@ export default async function Home() {
       ))}
 
       <p className="note">
-        Guru does not send connection requests or DMs. There is no compliant API for
-        either, and the tools that claim otherwise put your account at risk — which is the
-        one asset this is all meant to grow. It builds the list and drafts the message;
-        you press send.
+        No automated connection requests or DMs. Guru drafts; you send.
       </p>
     </main>
   );
