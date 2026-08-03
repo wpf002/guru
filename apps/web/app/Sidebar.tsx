@@ -28,33 +28,37 @@ const ICONS = {
   linkedin: "M7 10v7M7 7v.01M12 17v-4a2 2 0 0 1 4 0v4M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
   intake: "M8 10h8M8 14h5M21 12a8 8 0 0 1-11.4 7.2L3 21l1.8-6.6A8 8 0 1 1 21 12z",
   dashboard: "M3 13h6v8H3zM15 3h6v18h-6zM9 17h6v4H9zM9 3h6v10H9z",
+  home: "M3 10.5 12 3l9 7.5M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5",
   review: "M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z",
   autonomy: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z",
 } as const;
 
-const SECTIONS = [
-  {
-    label: "Set up",
-    links: [
-      { href: "/archive", label: "Archive", icon: ICONS.archive },
-      { href: "/connect", label: "LinkedIn", icon: ICONS.linkedin },
-    ],
-  },
-  {
-    label: "Strategy",
-    links: [
-      { href: "/intake", label: "Intake", icon: ICONS.intake },
-      { href: "/dashboard", label: "Dashboard", icon: ICONS.dashboard },
-    ],
-  },
-  {
-    label: "Work",
-    links: [
-      { href: "/review", label: "Review", icon: ICONS.review },
-      { href: "/autonomy", label: "Autonomy", icon: ICONS.autonomy },
-    ],
-  },
+/**
+ * One flat list, ordered by how often you open it.
+ *
+ * It was previously grouped under Set up / Strategy / Work, which invented a
+ * taxonomy for six links and put the screen you use daily at the bottom. The
+ * rule below the divider is enough separation: everything above it is the daily
+ * loop, everything below it is configured once and forgotten.
+ */
+const PRIMARY = [
+  { href: "/", label: "Home", icon: ICONS.home, exact: true },
+  { href: "/review", label: "Review", icon: ICONS.review },
+  { href: "/intake", label: "Intake", icon: ICONS.intake },
+  { href: "/dashboard", label: "Dashboard", icon: ICONS.dashboard },
 ];
+
+const SECONDARY = [
+  { href: "/archive", label: "Archive", icon: ICONS.archive },
+  { href: "/connect", label: "LinkedIn", icon: ICONS.linkedin },
+  { href: "/autonomy", label: "Autonomy", icon: ICONS.autonomy },
+];
+
+/** Home matches exactly; everything else by prefix, so /review?tab=… stays lit. */
+function cls(pathname: string, link: { href: string; exact?: boolean }): string {
+  const active = link.exact ? pathname === link.href : pathname.startsWith(link.href);
+  return active ? "side-link active" : "side-link";
+}
 
 export function Sidebar({ email }: { email: string }) {
   const pathname = usePathname();
@@ -75,22 +79,25 @@ export function Sidebar({ email }: { email: string }) {
         Guru
       </Link>
 
-      {SECTIONS.map((section) => (
-        <div key={section.label}>
-          <div className="side-label">{section.label}</div>
-          {section.links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              // startsWith so /review?tab=engagement still marks Review active.
-              className={pathname.startsWith(link.href) ? "side-link active" : "side-link"}
-            >
-              <Icon d={link.icon} />
-              {link.label}
-            </Link>
-          ))}
-        </div>
-      ))}
+      <nav className="side-nav">
+        {PRIMARY.map((link) => (
+          <Link key={link.href} href={link.href} className={cls(pathname, link)}>
+            <Icon d={link.icon} />
+            {link.label}
+          </Link>
+        ))}
+      </nav>
+
+      <hr className="side-rule" />
+
+      <nav className="side-nav">
+        {SECONDARY.map((link) => (
+          <Link key={link.href} href={link.href} className={cls(pathname, link)}>
+            <Icon d={link.icon} />
+            {link.label}
+          </Link>
+        ))}
+      </nav>
 
       <div className="side-foot">
         <span className="avatar">{email.slice(0, 1)}</span>

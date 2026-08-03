@@ -60,6 +60,32 @@ export async function intakeRoutes(app: FastifyInstance, llm: GuruLlm) {
     },
   );
 
+  /** Cheap "where am I" for the setup flow — no model call, no session created. */
+  app.get("/intake/state", async (request, reply) => {
+    const userId = requireUser(request);
+
+    // "Have you ever finished one", not "is the newest one finished". Opening
+    // the intake screen starts a fresh session, so reading the latest reported
+    // a completed intake as unfinished the moment someone looked at the page.
+    const [finished, latest] = await Promise.all([
+      prisma.intakeSession.findFirst({
+        where: { userId, status: "COMPLETE" },
+        select: { id: true },
+      }),
+      prisma.intakeSession.findFirst({
+        where: { userId },
+        orderBy: { startedAt: "desc" },
+        select: { id: true, _count: { select: { turns: true } } },
+      }),
+    ]);
+
+    return reply.send({
+      sessionId: latest?.id ?? null,
+      started: Boolean(latest && latest._count.turns > 0),
+      complete: Boolean(finished),
+    });
+  });
+
   app.get("/brief", async (request, reply) => {
     const brief = await activeBrief(requireUser(request));
     if (!brief) return reply.code(404).send({ error: "No brief yet." });

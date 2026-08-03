@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { currentUser } from "../lib/api";
+import { setupProgress } from "../lib/progress";
 
 // Ordered by what to do first, not by what the pipeline depends on. The archive
 // takes hours on LinkedIn's side, so it is requested early and used late —
@@ -59,6 +61,10 @@ export default async function Home() {
       </main>
     );
   }
+
+  // Setup is a flow, so the signed-in home is either that flow or the app.
+  const { complete } = await setupProgress();
+  if (!complete) redirect("/setup");
 
   return (
     <main className="page">

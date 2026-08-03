@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { API_URL } from "../../lib/api";
+import { DraftBody } from "./DraftBody";
 
 /**
  * Content and engagement review — roadmap §1.5, §1.6, §1.7.
@@ -73,7 +74,7 @@ export function ContentReview({ drafts }: { drafts: DraftView[] }) {
             <p>{draft.whyThis ?? draft.roadmapElement.rationale}</p>
           </div>
 
-          <pre className="draft-body">{draft.content}</pre>
+          <DraftBody content={draft.content} />
 
           <div className="meta">
             {/* A status is a state, not a sentence — it reads as stray text
@@ -290,7 +291,7 @@ export function EngagementReview({ targets }: { targets: TargetView[] }) {
 
             {draft?.content ? (
               <>
-                <pre className="draft-body">{draft.content}</pre>
+                <DraftBody content={draft.content} />
                 {draft.whyThis ? <p className="note">{draft.whyThis}</p> : null}
                 <div className="actions">
                   <button

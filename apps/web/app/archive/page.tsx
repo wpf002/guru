@@ -118,36 +118,6 @@ export default async function ArchivePage({
         <ArchiveUpload />
       </div>
 
-      <h2>History</h2>
-      {snapshots.length === 0 ? (
-        <p className="note">No archive ingested yet.</p>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Requested</th>
-              <th>Source</th>
-              <th>Status</th>
-              <th>Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {snapshots.map((s) => (
-              <tr key={s.id}>
-                <td>{new Date(s.requestedAt).toLocaleString()}</td>
-                <td>{s.source === "GMAIL_AUTO" ? "Gmail" : "Upload"}</td>
-                <td>{s.status.replaceAll("_", " ").toLowerCase()}</td>
-                <td>
-                  {s.error ??
-                    (s.fileReport?.unrecognizedFiles?.length
-                      ? `${s.fileReport.unrecognizedFiles.length} unrecognised files`
-                      : "—")}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
     </main>
   );
 }
