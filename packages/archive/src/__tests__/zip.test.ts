@@ -1,6 +1,11 @@
 import AdmZip from "adm-zip";
 import { describe, expect, it } from "vitest";
-import { ArchiveUnpackError, classifyContents, parseArchiveZip } from "../zip.js";
+import {
+  ArchiveUnpackError,
+  canonicalArchiveName,
+  classifyContents,
+  parseArchiveZip,
+} from "../zip.js";
 
 function zipOf(files: Record<string, string>): Buffer {
   const zip = new AdmZip();
@@ -106,5 +111,62 @@ describe("classifyContents", () => {
         shares: [{} as never],
       }),
     ).toBe("COMPLETE");
+  });
+});
+
+describe("canonicalArchiveName", () => {
+  it("strips the member-id suffix real exports carry", () => {
+    // A genuine export names these Shares_1638994912.csv and
+    // Comments_1638994912.csv, not the clean names the docs imply.
+    expect(canonicalArchiveName("Shares_1638994912.csv")).toBe("shares.csv");
+    expect(canonicalArchiveName("Comments_1638994912.csv")).toBe("comments.csv");
+    expect(canonicalArchiveName("Reactions_1638994912.csv")).toBe("reactions.csv");
+  });
+
+  it("leaves clean names alone", () => {
+    expect(canonicalArchiveName("Connections.csv")).toBe("connections.csv");
+    expect(canonicalArchiveName("messages.csv")).toBe("messages.csv");
+    expect(canonicalArchiveName("Jobs/Saved Jobs.csv")).toBe("saved jobs.csv");
+  });
+
+  it("does not collapse a different file onto a known one", () => {
+    // learning_coach_messages.csv must not become messages.csv — only a
+    // trailing _<digits> is a member id.
+    expect(canonicalArchiveName("learning_coach_messages.csv")).toBe(
+      "learning_coach_messages.csv",
+    );
+    expect(canonicalArchiveName("Member_Follows_1638994912.csv")).toBe("member_follows.csv");
+  });
+});
+
+describe("unpacking a real export's filenames", () => {
+  it("finds shares and comments despite the member-id suffix", () => {
+    const zip = new AdmZip();
+    zip.addFile(
+      "Connections.csv",
+      Buffer.from(
+        `First Name,Last Name,URL,Email Address,Company,Position,Connected On
+Jane,Doe,https://linkedin.com/in/janedoe,,Acme,VP Ops,15 Mar 2023
+`,
+        "utf8",
+      ),
+    );
+    zip.addFile(
+      "Shares_1638994912.csv",
+      Buffer.from(`Date,ShareLink,ShareCommentary\n2024-05-01,https://x,"A post."\n`, "utf8"),
+    );
+    zip.addFile(
+      "Comments_1638994912.csv",
+      Buffer.from(`Date,Link,Message\n2024-05-01,https://y,"A comment."\n`, "utf8"),
+    );
+
+    const contents = parseArchiveZip(zip.toBuffer());
+
+    expect(contents.connections).toHaveLength(1);
+    // Before the fix both of these were 0 and the files landed in
+    // unrecognizedFiles, while ingestion still reported success.
+    expect(contents.shares).toHaveLength(1);
+    expect(contents.comments).toHaveLength(1);
+    expect(contents.unrecognizedFiles).toEqual([]);
   });
 });

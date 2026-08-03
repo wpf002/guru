@@ -48,9 +48,27 @@ export class ArchiveUnpackError extends Error {}
 /** Guards against a zip bomb — the largest real archives are well under this. */
 const MAX_TOTAL_UNCOMPRESSED_BYTES = 2_000_000_000;
 
-function basename(entryName: string): string {
+/**
+ * The basename, lowercased, with LinkedIn's member-id suffix removed.
+ *
+ * Real exports do not use the clean names the documentation implies. Activity
+ * files carry the member id: `Shares_1638994912.csv`, `Comments_1638994912.csv`,
+ * `Reactions_1638994912.csv`. Matching the bare name meant shares and comments
+ * fell through to `unrecognizedFiles` on every genuine archive, and ingestion
+ * reported success with zero of both — which silently empties the voice model,
+ * posting cadence, the brief's archive summary, and the §1.2 seeds.
+ *
+ * Only a trailing `_<digits>` is stripped, so `learning_coach_messages.csv`
+ * stays distinct from `messages.csv`.
+ */
+export function canonicalArchiveName(entryName: string): string {
   const parts = entryName.split("/");
-  return (parts[parts.length - 1] ?? entryName).toLowerCase();
+  const name = (parts[parts.length - 1] ?? entryName).toLowerCase();
+  return name.replace(/_\d+(\.[a-z0-9]+)$/, "$1");
+}
+
+function basename(entryName: string): string {
+  return canonicalArchiveName(entryName);
 }
 
 function isUnderArticlesDir(entryName: string): boolean {

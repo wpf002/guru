@@ -14,7 +14,7 @@ pnpm dev
 LinkedIn credentials set. Google and the intel provider are not configured, and
 the app runs fine without them.
 
-Tests: `pnpm test` (204, no database) and `pnpm test:integration` (101, needs the
+Tests: `pnpm test` (208, no database) and `pnpm test:integration` (101, needs the
 database). Conformance suite asserts roadmap claims directly — see
 [TRACEABILITY.md](TRACEABILITY.md).
 
@@ -49,23 +49,42 @@ Two consequences worth knowing:
 
 - **Publishing / commenting / reacting** — the client is written to the
   documented contract and now has a real token, but no call has been made.
-- **Archive ingestion for this user** — `connections` and `shares` are both 0.
-  The intake ran off profile data, not an archive. §1.1 is untested against a
-  real LinkedIn export.
 - **Gmail/Drive** (§1.1 watch, §1.9 Drive pull) — no Google project.
 - **Intel provider** (§1.4 trend/peer analysis) — no search API key, so roadmaps
   are generated with `degraded: true` and say so.
 
+## A real archive is ingested (2 Aug 2026)
+
+114 connections, 88 messages, 43 invitations, 1 share, 1 comment. Snapshot
+`COMPLETE`, no false churn on the diff. The network reads as expected — top
+titles are Detection Engineer, Senior Information Security Engineer, Threat
+Hunter — and the last post is 9 Mar 2026, matching the dormancy the brief
+assumed.
+
+Two things this exposed, both of which only a real export could show:
+
+- **No archive email is ever sent.** LinkedIn's settings page said the archive
+  was ready; nothing arrived in Gmail, while other LinkedIn mail (including the
+  API provisioning notices) landed fine. §1.1's "archive email → parsed profile
+  with zero user steps" has no email to trigger on. The settings page is the
+  only reliable signal. A Gmail watcher would have waited forever.
+- **The settings page understates what the download contains.** It listed five
+  categories (Articles, Invitations, Profile, Recommendations, Registration);
+  the ZIP held 41 files including `Connections.csv`. Do not infer contents from
+  that list.
+
+The brief on file was generated *before* this, so it was synthesized with "no
+archive has been ingested yet". Re-running intake would now produce a
+materially better one.
+
 ## Open, in priority order
 
-1. **Ingest a real archive.** Everything downstream currently reasons about a
-   network of zero. This is the largest gap between what the product claims and
-   what it has seen. Archive requested 31 Jul 2026; LinkedIn emails a link
-   within ~24h.
-2. **Intake UI loses the transcript on reload.** Session state resumes correctly;
+1. **Intake UI loses the transcript on reload.** Session state resumes correctly;
    the conversation doesn't redraw. `IntakeClient` never fetches prior turns.
-3. **§1.6 needs the Community Management API** — a vetted application, weeks of
+2. **§1.6 needs the Community Management API** — a vetted application, weeks of
    review. Code is built behind `LINKEDIN_FEED_SCOPES_APPROVED`.
+3. **Publishing has still never been called.** The token is real; the three
+   `w_member_social` actions are not exercised.
 
 ## Fixed: intake over-probing
 
@@ -90,7 +109,7 @@ Add ~1 for the opening question the UI fetches before the first answer.
 
 ## Bugs found by running it for real
 
-Eight features were fully implemented, type-checked and passing tests while
+Nine features were fully implemented, type-checked and passing tests while
 doing nothing. Recorded because the pattern matters more than the individual
 fixes:
 
@@ -114,6 +133,13 @@ fixes:
    most packages reported "no test files" and the suite passed. The root script
    now runs vitest once from the root. The 196 figure was always real — it came
    from running vitest directly — but the documented command did not produce it.
+
+9. The ZIP unpacker matched `shares.csv` and `comments.csv` exactly, but real
+   exports name them `Shares_1638994912.csv` and `Comments_1638994912.csv` —
+   the member id is appended. Both fell into `unrecognizedFiles` while ingestion
+   reported success, which would have emptied the voice model, posting cadence,
+   the brief's archive summary and the §1.2 seeds. Found by ingesting a real
+   export; every fixture in the tests had used the clean names.
 
 Every one passed its tests because the tests asserted that a function behaved,
 not that the roadmap's promise held. That's what the conformance suite is for.
