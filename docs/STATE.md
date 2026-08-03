@@ -19,7 +19,7 @@ it — which is how a pre-auth install keeps its archive and brief.
 LinkedIn credentials set. Google and the intel provider are not configured, and
 the app runs fine without them.
 
-Tests: `pnpm test` (232, no database) and `pnpm test:integration` (123, needs the
+Tests: `pnpm test` (232, no database) and `pnpm test:integration` (128, needs the
 database). Conformance suite asserts roadmap claims directly — see
 [TRACEABILITY.md](TRACEABILITY.md).
 
@@ -156,11 +156,9 @@ account, so any signed-in user could push everyone's scheduled posts out early.
 
 ## Open, in priority order
 
-1. **Intake UI loses the transcript on reload.** Session state resumes correctly;
-   the conversation doesn't redraw. `IntakeClient` never fetches prior turns.
-2. **§1.6 needs the Community Management API** — a vetted application, weeks of
+1. **§1.6 needs the Community Management API** — a vetted application, weeks of
    review. Code is built behind `LINKEDIN_FEED_SCOPES_APPROVED`.
-3. **Publishing has still never been called.** `pnpm linkedin:preflight` now
+2. **Publishing has still never been called.** `pnpm linkedin:preflight` now
    verifies everything up to the write against the live API without creating
    anything — token decryption, liveness, scope, protocol headers, the pinned
    `LinkedIn-Version`, and that the payload carries every field LinkedIn says
@@ -192,6 +190,38 @@ adversarial once stuck — "you've dodged this four times now" — while pressin
 for an `offer` that does not exist for someone who is not selling anything.
 
 Add ~1 for the opening question the UI fetches before the first answer.
+
+## Fixed: intake transcript survives a reload
+
+`IntakeClient` now fetches the stored turns after resuming and renders the whole
+conversation, instead of showing the last question alone.
+
+The worse half of the same bug: it decided whether to ask an opening question by
+checking whether `question` was null, but `question` reports only the *last*
+turn. Reload right after answering and it was null with turns already present, so
+the client posted a null message and spent a model call generating a replacement
+question for criteria that were still open. It now gates on the transcript being
+empty. Verified in a browser against a seeded session: two page loads, zero
+model calls, turns unchanged.
+
+Driving it in a browser also turned up three things the integration suite could
+not have caught:
+
+- **The dev server was serving a 404 stylesheet.** It had been running since
+  30 Jul across every change; `<link>` was in the HTML and the asset was gone,
+  so every page rendered unstyled. Only a restart with `.next` cleared fixes it,
+  and nothing in the tests looks at CSS.
+- **`POST /intake/start` 400'd from the browser but passed in tests.** With
+  `userId` gone it sends no body, while still declaring
+  `Content-Type: application/json` — which Fastify rejects before the route
+  runs. `app.inject` with no payload does not reproduce that. The server now
+  parses an empty JSON body as `{}`, the clients no longer declare JSON when
+  there is nothing to send, and a test sets the header explicitly.
+- **Six routes called `requireUser` inside a `try`** whose catch turned
+  everything into a 409 or a redirect, so an anonymous request to `/roadmap`
+  answered "conflict" and echoed "Sign in to continue" as the reason. Four
+  others answered 503 before checking auth, telling anonymous callers whether
+  Google or LinkedIn is configured.
 
 ## Bugs found by running it for real
 

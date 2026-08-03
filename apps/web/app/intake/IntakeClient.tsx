@@ -25,6 +25,18 @@ interface TurnResult {
   progress: Progress[];
 }
 
+interface StoredTurn {
+  index: number;
+  role: string;
+  content: string;
+}
+
+interface StoredSession {
+  id: string;
+  status: string;
+  turns: StoredTurn[];
+}
+
 const AREA_LABELS: Record<string, string> = {
   WHO_THEY_ARE: "Who you are",
   WHERE_THEY_ARE_TODAY: "Where you are today",
@@ -49,12 +61,39 @@ export function IntakeClient() {
 
     void (async () => {
       try {
+        // Idempotent: returns the in-progress session if there is one.
         const result = await post<TurnResult>("/intake/start");
         setState(result);
-        // Starting a fresh session has no question yet — ask for the first one.
-        const first = result.question
-          ? result
-          : await post<TurnResult>(`/intake/${result.sessionId}/answer`, { message: null });
+
+        // Rehydrate the whole conversation rather than the last question alone.
+        //
+        // Intake is resumable across sittings and takes several turns, so a
+        // reload used to drop everything that had been said — leaving the user
+        // staring at one question with no idea what they had already answered.
+        const session = await get<StoredSession>(`/intake/${result.sessionId}`);
+        const turns = session?.turns ?? [];
+
+        if (turns.length > 0) {
+          setMessages(
+            [...turns]
+              .sort((a, b) => a.index - b.index)
+              .map((t) => ({ role: t.role, text: t.content })),
+          );
+          return;
+        }
+
+        // Genuinely fresh: no turns yet, so ask for the opening question.
+        //
+        // Gated on the transcript being empty rather than on `question` being
+        // null. `question` reports only the *last* turn, so a reload right after
+        // answering left it null with turns already present — and posting a null
+        // message there spent a model call to generate a replacement question
+        // for criteria that were still open. Nothing was corrupted (the service
+        // records no turn for a null message), but the user paid for a question
+        // they had effectively already been asked.
+        const first = await post<TurnResult>(`/intake/${result.sessionId}/answer`, {
+          message: null,
+        });
         setState(first);
         if (first.question) setMessages([{ role: "assistant", text: first.question }]);
       } catch (err) {
@@ -167,10 +206,21 @@ export function IntakeClient() {
   );
 }
 
+async function get<T>(path: string): Promise<T | null> {
+  const res = await fetch(`${API_URL}${path}`, { credentials: "include" });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error((await res.text()) || `Request failed (${res.status})`);
+  return (await res.json()) as T;
+}
+
 async function post<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    // Only declare JSON when there is JSON. Sending the header with no body
+    // makes Fastify reject the request outright — "Body cannot be empty when
+    // content-type is set to 'application/json'" — which is what happened to
+    // /intake/start the moment its { userId } payload was removed.
+    headers: body === undefined ? {} : { "Content-Type": "application/json" },
     // The API is a different origin in development, so the session cookie is
     // only sent when this is set. Without it every action is anonymous and 401s.
     credentials: "include",

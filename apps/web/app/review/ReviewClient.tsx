@@ -36,7 +36,9 @@ export function ContentReview({ drafts }: { drafts: DraftView[] }) {
     try {
       const res = await fetch(`${API_URL}${path}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        // Declaring JSON with no body makes Fastify reject the request before
+        // it reaches the route.
+        headers: body === undefined ? {} : { "Content-Type": "application/json" },
         // Different origin in development — without this the session cookie is
         // not sent and every approval 401s.
         credentials: "include",
@@ -230,7 +232,9 @@ export function EngagementReview({ targets }: { targets: TargetView[] }) {
     try {
       const res = await fetch(`${API_URL}${path}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        // Declaring JSON with no body makes Fastify reject the request before
+        // it reaches the route.
+        headers: body === undefined ? {} : { "Content-Type": "application/json" },
         // Different origin in development — without this the session cookie is
         // not sent and every approval 401s.
         credentials: "include",

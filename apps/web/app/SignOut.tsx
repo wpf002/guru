@@ -9,6 +9,8 @@ export function SignOut({ email }: { email: string }) {
   async function signOut() {
     // credentials: "include" is what lets the API see the session it is being
     // asked to revoke; without it the row survives and the "sign out" is a lie.
+    // No Content-Type header: this POST has no body, and declaring JSON without
+    // one makes Fastify reject it.
     await fetch(`${API_URL}/auth/logout`, { method: "POST", credentials: "include" });
     router.refresh();
     router.push("/login");

@@ -128,9 +128,10 @@ export async function autonomyRoutes(app: FastifyInstance, env: Env, llm: GuruLl
   app.post<{ Body: { limit?: number } }>(
     "/audience/classify",
     async (request, reply) => {
+      const userId = requireUser(request);
       try {
         return reply.send(
-          await classifyAudience(llm, requireUser(request), { limit: request.body?.limit }),
+          await classifyAudience(llm, userId, { limit: request.body?.limit }),
         );
       } catch (err) {
         return reply.code(409).send({ error: (err as Error).message });
@@ -145,22 +146,22 @@ export async function autonomyRoutes(app: FastifyInstance, env: Env, llm: GuruLl
   // --- Documents (§1.9) ---
 
   app.get("/documents/candidates", async (request, reply) => {
+    const userId = requireUser(request);
     if (!env.google) return reply.code(503).send({ error: "Google is not configured." });
-    return reply.send({
-      candidates: await listDriveCandidates(env.google, requireUser(request)),
-    });
+    return reply.send({ candidates: await listDriveCandidates(env.google, userId) });
   });
 
   /** Per-document confirm. Nothing auto-ingests (§0.7). */
   app.post<{
     Body: { externalId: string; taggedExcerpts?: string[] };
   }>("/documents/confirm", async (request, reply) => {
+    const userId = requireUser(request);
     if (!env.google) return reply.code(503).send({ error: "Google is not configured." });
     return reply.send(
       await confirmAndIngestDrive(
         llm,
         env.google,
-        requireUser(request),
+        userId,
         request.body.externalId,
         request.body.taggedExcerpts ?? [],
       ),

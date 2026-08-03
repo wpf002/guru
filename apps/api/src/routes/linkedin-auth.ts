@@ -28,15 +28,18 @@ export async function linkedinAuthRoutes(app: FastifyInstance, env: Env) {
 
   /** Step 1 — redirect to LinkedIn's consent screen. */
   app.get("/auth/linkedin/start", async (request, reply) => {
+    // Fail before consent, not after: granting access and then discovering you
+    // were signed out wastes the grant. Auth is also checked before the
+    // configuration reply, so an anonymous caller learns nothing about how this
+    // deployment is set up.
+    requireUser(request);
+
     if (!linkedin) {
       return reply.code(503).send({
         error:
           "LinkedIn is not configured. Publishing is unavailable; everything else works. See docs/LINKEDIN-SETUP.md.",
       });
     }
-    // Fail before consent, not after: granting access and then discovering you
-    // were signed out wastes the grant.
-    requireUser(request);
 
     const state = generateState();
     reply.setCookie(STATE_COOKIE, state, {

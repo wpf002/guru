@@ -44,6 +44,32 @@ export async function buildServer() {
   await app.register(cookie);
   await app.register(multipart);
 
+  /**
+   * Treat an empty JSON body as `{}` rather than a 400.
+   *
+   * Fastify's default parser rejects `Content-Type: application/json` with no
+   * body — "Body cannot be empty when content-type is set to 'application/json'"
+   * — before the route runs. Several routes legitimately take no body now that
+   * the user comes from the session, and a browser `fetch` that still declares
+   * JSON is a completely reasonable thing for a client to send. Failing at the
+   * parser makes it look like the endpoint does not exist.
+   */
+  app.addContentTypeParser(
+    "application/json",
+    { parseAs: "string" },
+    (_request, body, done) => {
+      const text = (body as string).trim();
+      if (text === "") return done(null, {});
+      try {
+        done(null, JSON.parse(text));
+      } catch {
+        const err = new Error("Body is not valid JSON.") as Error & { statusCode?: number };
+        err.statusCode = 400;
+        done(err, undefined);
+      }
+    },
+  );
+
   // Resolves the session cookie on every request and installs the 401/404
   // handling for UnauthorizedError / ForbiddenError. Registered before any
   // route so a route added later is anonymous until it calls requireUser.

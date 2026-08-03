@@ -425,3 +425,55 @@ describe("§1.3 strategic brief", () => {
     expect(active!.neverSay).toContain("passive income");
   });
 });
+
+describe("§1.2 resuming an intake", () => {
+  it("returns the whole transcript in order, not just the last question", async () => {
+    // The UI rehydrates from this. Without it a reload dropped everything the
+    // user had said and left them looking at one question with no context.
+    const user = await makeUser();
+    const session = await startIntake(user.id);
+
+    const { llm } = scriptedLlm([
+      json({ question: "Q1", satisfiedCriteria: [], areaComplete: false, extracted: [] }),
+      json({ question: "Q2", satisfiedCriteria: [], areaComplete: false, extracted: [] }),
+    ]);
+
+    await submitAnswer(llm, session.sessionId, "First answer.");
+    await submitAnswer(llm, session.sessionId, "Second answer.");
+
+    const stored = await prisma.intakeSession.findUniqueOrThrow({
+      where: { id: session.sessionId },
+      include: { turns: { orderBy: { index: "asc" } } },
+    });
+
+    expect(stored.turns.map((t) => [t.role, t.content])).toEqual([
+      ["user", "First answer."],
+      ["assistant", "Q1"],
+      ["user", "Second answer."],
+      ["assistant", "Q2"],
+    ]);
+    // Indexes are dense and ordered, which is what the client sorts on.
+    expect(stored.turns.map((t) => t.index)).toEqual([0, 1, 2, 3]);
+  });
+
+  it("records no turn for a null message, so resuming cannot inject a blank answer", async () => {
+    const user = await makeUser();
+    const session = await startIntake(user.id);
+    const { llm } = scriptedLlm([
+      json({ question: "Opening question", satisfiedCriteria: [], areaComplete: false, extracted: [] }),
+    ]);
+
+    await submitAnswer(llm, session.sessionId, null);
+
+    const turns = await prisma.intakeTurn.findMany({ where: { sessionId: session.sessionId } });
+    expect(turns).toHaveLength(1);
+    expect(turns[0]!.role).toBe("assistant");
+  });
+
+  it("start is idempotent, so a reload resumes rather than restarting", async () => {
+    const user = await makeUser();
+    const first = await startIntake(user.id);
+    const second = await startIntake(user.id);
+    expect(second.sessionId).toBe(first.sessionId);
+  });
+});

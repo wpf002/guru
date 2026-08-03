@@ -52,12 +52,18 @@ export async function archiveRoutes(app: FastifyInstance, env: Env) {
       }
       reply.clearCookie(STATE_COOKIE, { path: "/" });
 
+      // Resolved before the try. Inside it, the catch redirects to
+      // "connection_failed", which would tell a signed-out user that Google
+      // refused them when in fact their session had simply expired mid-flow.
+      // SameSite=Lax keeps the session cookie across Google's redirect back, so
+      // this only fires when the session is genuinely gone.
+      const userId = request.authUserId;
+      if (!userId) {
+        return reply.redirect(`${env.webOrigin}/archive?error=signed_out`);
+      }
+
       try {
         const tokens = await exchangeGoogleCode(google, code);
-        // The session cookie survives the round trip (SameSite=Lax), so the
-        // connection attaches to whoever is signed in rather than to a header
-        // the caller controls.
-        const userId = requireUser(request);
 
         await prisma.googleAccount.upsert({
           where: { userId },
@@ -97,8 +103,11 @@ export async function archiveRoutes(app: FastifyInstance, env: Env) {
    * already-ingested message ids are filtered before anything downloads.
    */
   app.post("/archive/poll", async (request, reply) => {
+    // Auth before configuration: answering 503 first tells an anonymous caller
+    // whether this deployment has Google set up.
+    const userId = requireUser(request);
     if (!google) return reply.code(503).send({ error: "Google is not configured." });
-    const results = await pollAndIngest(google, requireUser(request));
+    const results = await pollAndIngest(google, userId);
     return reply.send({ results });
   });
 

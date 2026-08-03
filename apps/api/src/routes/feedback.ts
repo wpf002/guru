@@ -55,8 +55,9 @@ export async function feedbackRoutes(app: FastifyInstance, llm: GuruLlm) {
   // --- Voice model (§1.8) ---
 
   app.post("/voice/build", async (request, reply) => {
+    const userId = requireUser(request);
     try {
-      return reply.send(await buildVoiceProfile(llm, requireUser(request)));
+      return reply.send(await buildVoiceProfile(llm, userId));
     } catch (err) {
       return reply.code(409).send({ error: (err as Error).message });
     }

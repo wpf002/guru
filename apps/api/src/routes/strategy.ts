@@ -50,8 +50,12 @@ export async function strategyRoutes(app: FastifyInstance, env: Env, llm: GuruLl
   // --- Roadmap (§1.4) ---
 
   app.post("/roadmap", async (request, reply) => {
+    // Resolved before the try. Inside it, the catch-all 409 would answer an
+    // anonymous request with "conflict" and echo "Sign in to continue" as the
+    // reason, which is neither the right status nor a usable message.
+    const userId = requireUser(request);
     try {
-      return reply.send(await generateRoadmap(llm, requireUser(request), env.intel));
+      return reply.send(await generateRoadmap(llm, userId, env.intel));
     } catch (err) {
       return reply.code(409).send({ error: (err as Error).message });
     }
@@ -73,14 +77,11 @@ export async function strategyRoutes(app: FastifyInstance, env: Env, llm: GuruLl
   app.post<{ Body: { roadmapElementId: string } }>(
     "/content/draft",
     async (request, reply) => {
+      // generateDraft already refuses a roadmap element belonging to someone
+      // else; passing the session user is what makes that check meaningful.
+      const userId = requireUser(request);
       try {
-        // generateDraft already refuses a roadmap element belonging to someone
-        // else; passing the session user is what makes that check meaningful.
-        const draft = await generateDraft(
-          llm,
-          requireUser(request),
-          request.body.roadmapElementId,
-        );
+        const draft = await generateDraft(llm, userId, request.body.roadmapElementId);
         return reply.send(draft);
       } catch (err) {
         // Both of these are the gates doing their job, so they get a specific

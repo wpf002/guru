@@ -17,8 +17,11 @@ import type { Env } from "../env.js";
 /** Engagement engine routes — roadmap §1.6. */
 export async function engagementRoutes(app: FastifyInstance, env: Env, llm: GuruLlm) {
   app.post("/engagement/discover", async (request, reply) => {
+    // Outside the try: a catch that turns everything into a 409 would relabel
+    // "you are not signed in" as a conflict.
+    const userId = requireUser(request);
     try {
-      const result = await discoverTargets(llm, requireUser(request), env.intel);
+      const result = await discoverTargets(llm, userId, env.intel);
       if (result.degraded) {
         // A clear "not configured" beats an empty queue that looks like a bug.
         return reply.send({

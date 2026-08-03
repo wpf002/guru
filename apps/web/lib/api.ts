@@ -70,7 +70,8 @@ export async function apiGet<T>(path: string): Promise<T | null> {
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   const res = await request(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    // Declaring JSON with no body is rejected by Fastify before the route runs.
+    headers: body === undefined ? {} : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (res.status === 401) throw new NotSignedInError();

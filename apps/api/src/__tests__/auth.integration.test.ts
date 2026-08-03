@@ -432,3 +432,63 @@ describe("claiming a pre-auth account", () => {
     expect((briefRes.json() as { id: string }).id).toBe(brief.id);
   });
 });
+
+describe("bodyless POSTs", () => {
+  /**
+   * Several routes lost their request body when userId moved to the session, and
+   * a browser `fetch` that still declares `Content-Type: application/json` with
+   * no body is rejected by Fastify before the route ever runs:
+   *
+   *   Body cannot be empty when content-type is set to 'application/json'
+   *
+   * `app.inject` with no payload does not reproduce that, which is exactly why
+   * the first pass of these tests passed while the real UI was broken. These
+   * set the header explicitly.
+   */
+  const BODYLESS = [
+    "/intake/start",
+    "/auth/logout",
+    "/roadmap",
+    "/voice/build",
+    "/engagement/discover",
+    "/archive/poll",
+    "/analysis/persona-fit",
+    "/prospects/identify",
+    "/audience/classify",
+    "/autonomy/resume",
+  ];
+
+  it("do not 400 merely because the client declared JSON", async () => {
+    const { cookies } = await signUp("bodyless@example.test");
+
+    for (const url of BODYLESS) {
+      const res = await app.inject({
+        method: "POST",
+        url,
+        cookies,
+        headers: { "content-type": "application/json" },
+      });
+
+      // Any outcome is fine except the one that means the request never
+      // arrived: a 503 for an unconfigured provider, a 409 for a missing
+      // precondition, even a 500 — all of those are the route running.
+      expect(
+        res.statusCode,
+        `${url} rejected an empty JSON body: ${res.body.slice(0, 120)}`,
+      ).not.toBe(400);
+    }
+  });
+
+  it("still require a session", async () => {
+    for (const url of BODYLESS) {
+      const res = await app.inject({
+        method: "POST",
+        url,
+        headers: { "content-type": "application/json" },
+      });
+      // /auth/logout is deliberately safe to call signed out.
+      if (url === "/auth/logout") continue;
+      expect(res.statusCode, `${url} must require a session`).toBe(401);
+    }
+  });
+});
