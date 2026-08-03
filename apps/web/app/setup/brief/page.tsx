@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { apiGet } from "../../../lib/api";
+import { requireStep } from "../../../lib/gate";
 
 interface Brief {
   id: string;
@@ -14,6 +15,7 @@ interface Brief {
 }
 
 export default async function SetupBrief() {
+  await requireStep("brief");
   const brief = await apiGet<Brief>("/brief");
 
   if (!brief) {

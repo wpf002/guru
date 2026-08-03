@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { API_URL, apiGet } from "../../../lib/api";
+import { requireStep } from "../../../lib/gate";
 
 export default async function SetupConnect() {
+  await requireStep("connect");
   const status = await apiGet<{ connected: boolean; name?: string }>(
     "/auth/linkedin/status",
   );

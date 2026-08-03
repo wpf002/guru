@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { apiGet } from "../../../lib/api";
-import { ArchiveUpload } from "../../archive/ArchiveUpload";
+import { ArchiveUpload } from "../_components/ArchiveUpload";
+import { requireStep } from "../../../lib/gate";
 
 const DOWNLOAD_URL = "https://www.linkedin.com/mypreferences/d/download-my-data";
 
 export default async function SetupArchive() {
+  await requireStep("archive");
   const data = await apiGet<{ snapshots: { status: string }[] }>("/archive/status");
   const has = (data?.snapshots ?? []).some((s) => s.status !== "FAILED");
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { API_URL } from "../../lib/api";
+import { API_URL } from "../../../lib/api";
 
 /**
  * Drop the ZIP without leaving the page.

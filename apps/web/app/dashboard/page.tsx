@@ -60,9 +60,14 @@ export default async function DashboardPage({
     <main className="page">
       <header className="head">
         <div className="head-text">
-          <h1>Dashboard</h1>
-          <p className="lede">How much Guru has learned, and whether it is improving.</p>
+          <h1>Progress</h1>
+          <p className="lede">Whether Guru is learning, and from what.</p>
         </div>
+        {/* The only two things a settings page would have carried that are not
+            already on a screen. */}
+        <a className="button secondary" href="/setup/archive">
+          Update archive
+        </a>
       </header>
 
       <h2>Confidence by category</h2>

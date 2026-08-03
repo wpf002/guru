@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { setupProgress } from "../../lib/progress";
+import { reachable, setupProgress } from "../../lib/progress";
 import { requireSession } from "../../lib/session";
 
 /**
- * Setup is one flow, not four pages.
+ * Setup is one gated sequence.
  *
- * Archive, intake, brief and LinkedIn used to be separate sidebar links with
- * nothing to say which came first or when you were finished. This wraps them in
- * a stepper: where you are, what is left, what is optional.
+ * The steps used to be separate sidebar links with nothing saying which came
+ * first, and jumping to the brief before intake existed produced a dead screen.
+ * A step you have not earned yet is not a link.
  */
 export default async function SetupLayout({ children }: { children: React.ReactNode }) {
   await requireSession();
@@ -16,17 +16,28 @@ export default async function SetupLayout({ children }: { children: React.ReactN
   return (
     <main className="page setup">
       <ol className="stepper">
-        {steps.map((step, i) => (
-          <li key={step.id} className={step.done ? "stepper-item done" : "stepper-item"}>
-            <Link href={step.href}>
+        {steps.map((step, i) => {
+          const open = reachable(steps, step.id);
+          const cls = ["stepper-item", step.done ? "done" : "", open ? "" : "locked"]
+            .filter(Boolean)
+            .join(" ");
+
+          const inner = (
+            <>
               <span className="stepper-dot">{step.done ? "✓" : i + 1}</span>
               <span className="stepper-label">
                 {step.label}
                 {step.optional ? <em>optional</em> : null}
               </span>
-            </Link>
-          </li>
-        ))}
+            </>
+          );
+
+          return (
+            <li key={step.id} className={cls}>
+              {open ? <Link href={step.href}>{inner}</Link> : <span>{inner}</span>}
+            </li>
+          );
+        })}
       </ol>
 
       <div className="setup-body">{children}</div>

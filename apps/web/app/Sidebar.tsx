@@ -24,13 +24,9 @@ function Icon({ d }: IconProps) {
 }
 
 const ICONS = {
-  archive: "M4 8h16M4 8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4",
-  linkedin: "M7 10v7M7 7v.01M12 17v-4a2 2 0 0 1 4 0v4M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
-  intake: "M8 10h8M8 14h5M21 12a8 8 0 0 1-11.4 7.2L3 21l1.8-6.6A8 8 0 1 1 21 12z",
   dashboard: "M3 13h6v8H3zM15 3h6v18h-6zM9 17h6v4H9zM9 3h6v10H9z",
-  home: "M3 10.5 12 3l9 7.5M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5",
+  strategy: "M3 3v18h18M7 15l4-4 3 3 5-6",
   review: "M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z",
-  autonomy: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z",
 } as const;
 
 /**
@@ -41,17 +37,19 @@ const ICONS = {
  * rule below the divider is enough separation: everything above it is the daily
  * loop, everything below it is configured once and forgotten.
  */
-const PRIMARY = [
-  { href: "/", label: "Home", icon: ICONS.home, exact: true },
+/**
+ * Three screens, because Phase 1 is three things.
+ *
+ * §1.4 the strategy, §1.5–1.6 the drafts waiting on you, §1.7 whether it is
+ * learning. Nothing else earns a permanent place: archive, intake and the
+ * LinkedIn connection are setup and live in that flow, and autonomy is Phase 2
+ * — §1.10 is explicitly "a stub that records intent and gates nothing", so a
+ * nav item for it would advertise a capability the product does not have.
+ */
+const NAV = [
+  { href: "/strategy", label: "Strategy", icon: ICONS.strategy },
   { href: "/review", label: "Review", icon: ICONS.review },
-  { href: "/intake", label: "Intake", icon: ICONS.intake },
-  { href: "/dashboard", label: "Dashboard", icon: ICONS.dashboard },
-];
-
-const SECONDARY = [
-  { href: "/archive", label: "Archive", icon: ICONS.archive },
-  { href: "/connect", label: "LinkedIn", icon: ICONS.linkedin },
-  { href: "/autonomy", label: "Autonomy", icon: ICONS.autonomy },
+  { href: "/dashboard", label: "Progress", icon: ICONS.dashboard },
 ];
 
 /** Home matches exactly; everything else by prefix, so /review?tab=… stays lit. */
@@ -80,18 +78,7 @@ export function Sidebar({ email }: { email: string }) {
       </Link>
 
       <nav className="side-nav">
-        {PRIMARY.map((link) => (
-          <Link key={link.href} href={link.href} className={cls(pathname, link)}>
-            <Icon d={link.icon} />
-            {link.label}
-          </Link>
-        ))}
-      </nav>
-
-      <hr className="side-rule" />
-
-      <nav className="side-nav">
-        {SECONDARY.map((link) => (
+        {NAV.map((link) => (
           <Link key={link.href} href={link.href} className={cls(pathname, link)}>
             <Icon d={link.icon} />
             {link.label}

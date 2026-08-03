@@ -10,7 +10,7 @@ import { apiGet } from "./api";
  * have to keep in sync.
  */
 
-export type StepId = "archive" | "intake" | "brief" | "connect";
+export type StepId = "connect" | "archive" | "intake" | "brief" | "roadmap";
 
 export interface Step {
   id: StepId;
@@ -28,31 +28,51 @@ export interface Progress {
   complete: boolean;
 }
 
+/**
+ * Ordered as the roadmap builds it: connection, archive, intake, brief, roadmap.
+ * Optional steps still occupy their place in the sequence — they can be skipped,
+ * not reordered.
+ */
 export async function setupProgress(): Promise<Progress> {
-  const [archive, intake, brief, linkedin] = await Promise.all([
+  const [linkedin, archive, intake, brief, roadmap] = await Promise.all([
+    apiGet<{ connected: boolean }>("/auth/linkedin/status").catch(() => null),
     apiGet<{ snapshots: { status: string }[] }>("/archive/status").catch(() => null),
     apiGet<{ complete: boolean }>("/intake/state").catch(() => null),
     apiGet<{ id: string }>("/brief").catch(() => null),
-    apiGet<{ connected: boolean }>("/auth/linkedin/status").catch(() => null),
+    apiGet<{ id: string }>("/roadmap").catch(() => null),
   ]);
 
   const hasArchive = (archive?.snapshots ?? []).some((s) => s.status !== "FAILED");
 
   const steps: Step[] = [
-    { id: "archive", label: "Archive", href: "/setup/archive", done: hasArchive, optional: true },
-    { id: "intake", label: "Intake", href: "/setup/intake", done: Boolean(intake?.complete) },
-    { id: "brief", label: "Brief", href: "/setup/brief", done: Boolean(brief) },
     {
       id: "connect",
-      label: "LinkedIn",
+      label: "Connect",
       href: "/setup/connect",
       done: Boolean(linkedin?.connected),
       optional: true,
     },
+    { id: "archive", label: "Archive", href: "/setup/archive", done: hasArchive, optional: true },
+    { id: "intake", label: "Intake", href: "/setup/intake", done: Boolean(intake?.complete) },
+    { id: "brief", label: "Brief", href: "/setup/brief", done: Boolean(brief) },
+    { id: "roadmap", label: "Strategy", href: "/setup/roadmap", done: Boolean(roadmap) },
   ];
 
-  // Required steps decide completion; the optional ones never block the flow.
   const current = steps.find((s) => !s.done && !s.optional) ?? null;
 
   return { steps, current, complete: current === null };
+}
+
+/**
+ * Whether a step can be opened yet.
+ *
+ * Setup is a sequence, so jumping to the brief before intake exists produces a
+ * dead screen that explains nothing. Everything up to and including the first
+ * unfinished required step is reachable; nothing beyond it is.
+ */
+export function reachable(steps: Step[], id: StepId): boolean {
+  const index = steps.findIndex((s) => s.id === id);
+  if (index <= 0) return true;
+  // Every required step before this one must be done.
+  return steps.slice(0, index).every((s) => s.done || s.optional);
 }

@@ -1,6 +1,8 @@
-import { IntakeClient } from "../../intake/IntakeClient";
+import { IntakeClient } from "../_components/IntakeClient";
+import { requireStep } from "../../../lib/gate";
 
-export default function SetupIntake() {
+export default async function SetupIntake() {
+  await requireStep("intake");
   return (
     <>
       <h1>Tell Guru what you do</h1>

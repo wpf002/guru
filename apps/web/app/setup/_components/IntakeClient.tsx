@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { API_URL } from "../../lib/api";
+import { API_URL } from "../../../lib/api";
 
 /**
  * The intake conversation — roadmap §1.2.
