@@ -42,6 +42,10 @@ OAuth completed end to end. Granted scopes: `openid profile email
 w_member_social`. The token is envelope-encrypted at rest, verified by reading
 the row directly.
 
+**The app is company-verified** (2 Aug 2026), which is LinkedIn's gate before
+accounts other than the developer's own can authorize it. Nothing in the
+Developer Portal now blocks a second user from connecting.
+
 Two consequences worth knowing:
 
 - **No refresh token was issued.** LinkedIn grants those only to approved apps,
@@ -152,16 +156,11 @@ account, so any signed-in user could push everyone's scheduled posts out early.
 
 ## Open, in priority order
 
-1. **The LinkedIn app is not verified.** The Developer Portal shows "not
-   verified as being associated with this company", which is LinkedIn's gate
-   before *other people's* accounts can authorize it. One click from the Page
-   admin. Until then only Will can connect LinkedIn — everything else works for
-   anyone.
-2. **Intake UI loses the transcript on reload.** Session state resumes correctly;
+1. **Intake UI loses the transcript on reload.** Session state resumes correctly;
    the conversation doesn't redraw. `IntakeClient` never fetches prior turns.
-3. **§1.6 needs the Community Management API** — a vetted application, weeks of
+2. **§1.6 needs the Community Management API** — a vetted application, weeks of
    review. Code is built behind `LINKEDIN_FEED_SCOPES_APPROVED`.
-4. **Publishing has still never been called.** The token is real; the three
+3. **Publishing has still never been called.** The token is real; the three
    `w_member_social` actions are not exercised.
 
 ## Fixed: intake over-probing
