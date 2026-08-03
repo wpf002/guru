@@ -35,7 +35,12 @@ export default async function ReviewPage({
 
   return (
     <main className="page">
-      <h1>Review</h1>
+      <header className="head">
+        <div className="head-text">
+          <h1>Review</h1>
+          <p className="lede">Nothing goes out without your approval.</p>
+        </div>
+      </header>
 
       <nav className="tabs">
         <a className={active === "content" ? "tab active" : "tab"} href="/review">

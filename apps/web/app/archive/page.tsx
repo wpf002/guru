@@ -49,11 +49,12 @@ export default async function ArchivePage({
 
   return (
     <main className="page">
-      <h1>Your LinkedIn archive</h1>
-      <p className="lede">
-        Your connections, posts and comments. LinkedIn only gives these out as a file
-        you request yourself.
-      </p>
+      <header className="head">
+        <div className="head-text">
+          <h1>Archive</h1>
+          <p className="lede">Your connections, posts and comments. LinkedIn only gives these out as a file you request yourself.</p>
+        </div>
+      </header>
 
       {error ? (
         <p className="error" role="alert">
@@ -65,7 +66,7 @@ export default async function ArchivePage({
       {connected ? <p className="callout">Gmail connected.</p> : null}
 
       <section className="checkpoint">
-        <h2>1 &middot; Request it</h2>
+        <h2>Step 1 &middot; Request it</h2>
         <p>
           Pick <strong>Download larger data archive</strong> — the top option. Only that
           one has your connections. Then <strong>Request archive</strong>.
@@ -73,8 +74,10 @@ export default async function ArchivePage({
         <a className="button" href={LINKEDIN_DOWNLOAD_URL} target="_blank" rel="noreferrer">
           Open LinkedIn
         </a>
+      </section>
 
-        <h2>2 &middot; Come back for it</h2>
+      <section className="checkpoint">
+        <h2>Step 2 &middot; Come back for it</h2>
         <p>
           Takes a few hours. <strong>No email arrives</strong> — check the same page, and
           the button will say Download archive. Drop the ZIP below without unzipping it.
@@ -111,7 +114,9 @@ export default async function ArchivePage({
       ) : null}
 
       <h2>Upload</h2>
-      <ArchiveUpload />
+      <div className="upload">
+        <ArchiveUpload />
+      </div>
 
       <h2>History</h2>
       {snapshots.length === 0 ? (

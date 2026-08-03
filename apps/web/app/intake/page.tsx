@@ -11,10 +11,14 @@ export default async function IntakePage({
 
   return (
     <main className="page wide">
-      <h1>Intake</h1>
-      <p className="lede">
-        Five areas. Two are pre-filled from your archive. Stop and come back any time.
-      </p>
+      <header className="head">
+        <div className="head-text">
+          <h1>Intake</h1>
+          <p className="lede">
+            Five areas. Two are pre-filled from your archive. Stop and come back any time.
+          </p>
+        </div>
+      </header>
       <IntakeClient />
     </main>
   );

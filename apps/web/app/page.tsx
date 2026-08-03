@@ -62,18 +62,20 @@ export default async function Home() {
 
   return (
     <main className="page">
-      <h1>Welcome back</h1>
-      <p className="lede">
-        Strategy first, then the posts and comments that execute it.
-      </p>
+      <header className="head">
+        <div className="head-text">
+          <h1>Welcome back</h1>
+          <p className="lede">Strategy first, then the posts that execute it.</p>
+        </div>
+      </header>
 
       {STEPS.map((step, i) => (
         <Link className="step" href={step.href} key={step.href}>
-          <h2>
-            <span className="step-num">{i + 1}</span>
-            {step.title}
-          </h2>
-          <p>{step.body}</p>
+          <span className="step-num">{i + 1}</span>
+          <div>
+            <h3>{step.title}</h3>
+            <p>{step.body}</p>
+          </div>
         </Link>
       ))}
 

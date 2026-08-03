@@ -44,12 +44,12 @@ export default async function AutonomyPage({
 
   return (
     <main className="page">
-      <h1>Autonomy</h1>
-      <p className="lede">
-        Guru can act without waiting for you, within limits you set. It earns this
-        separately for commenting and for posting, and it never earns it for outreach —
-        there is no compliant way to send on your behalf, so that stays a draft you send.
-      </p>
+      <header className="head">
+        <div className="head-text">
+          <h1>Autonomy</h1>
+          <p className="lede">What Guru may do without asking, and the limits on it.</p>
+        </div>
+      </header>
 
       {settings?.killSwitch ? (
         <div className="callout danger">

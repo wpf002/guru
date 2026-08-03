@@ -20,7 +20,12 @@ export default async function ConnectPage({
 
   return (
     <main className="page">
-      <h1>Connect your LinkedIn account</h1>
+      <header className="head">
+        <div className="head-text">
+          <h1>LinkedIn</h1>
+          <p className="lede">Needed only for publishing.</p>
+        </div>
+      </header>
 
       {error ? (
         <p className="error" role="alert">

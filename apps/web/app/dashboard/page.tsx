@@ -58,7 +58,12 @@ export default async function DashboardPage({
 
   return (
     <main className="page">
-      <h1>Dashboard</h1>
+      <header className="head">
+        <div className="head-text">
+          <h1>Dashboard</h1>
+          <p className="lede">How much Guru has learned, and whether it is improving.</p>
+        </div>
+      </header>
 
       <h2>Confidence by category</h2>
       <p className="lede">
