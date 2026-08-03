@@ -44,10 +44,9 @@ export default async function SetupArchive() {
       </div>
 
       <div className="setup-nav">
-        <Link className="button" href="/setup/intake">
-          {has ? "Continue" : "Skip for now"}
+        <Link className={has ? "button" : "button secondary"} href="/setup/intake">
+          {has ? "Continue" : "Skip — upload it later"}
         </Link>
-        <span className="note">Intake works without it.</span>
       </div>
     </>
   );

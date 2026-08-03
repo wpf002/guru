@@ -2,12 +2,16 @@ import { IntakeClient } from "../_components/IntakeClient";
 import { requireStep } from "../../../lib/gate";
 
 export default async function SetupIntake() {
-  await requireStep("intake");
+  const { steps } = await requireStep("intake");
+  const seeded = steps.find((s) => s.id === "archive")?.done ?? false;
+
   return (
     <>
       <h1>Tell Guru what you do</h1>
       <p className="lede">
-        Five areas. Two are already filled in from your archive. Stop any time.
+        {seeded
+          ? "Five areas. Two are already answered from your archive. Stop any time."
+          : "Five areas. Stop any time — it picks up where you left off."}
       </p>
       <IntakeClient />
     </>

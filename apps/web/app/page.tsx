@@ -35,8 +35,8 @@ export default async function Home() {
   }
 
   // Setup is a flow, so the signed-in home is either that flow or the app.
-  const { complete } = await setupProgress();
-  if (!complete) redirect("/setup");
+  const { current } = await setupProgress();
+  if (current) redirect(current.href);
 
   redirect("/strategy");
 }

@@ -26,6 +26,7 @@ function Icon({ d }: IconProps) {
 const ICONS = {
   dashboard: "M3 13h6v8H3zM15 3h6v18h-6zM9 17h6v4H9zM9 3h6v10H9z",
   strategy: "M3 3v18h18M7 15l4-4 3 3 5-6",
+  setup: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z",
   review: "M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z",
 } as const;
 
@@ -85,6 +86,13 @@ export function Sidebar({ email }: { email: string }) {
           </Link>
         ))}
       </nav>
+
+      {/* Not a nav item — setup is finished by the time you see this sidebar.
+          It is the way back to the archive, the brief and the connection. */}
+      <Link className="side-link quiet" href="/setup">
+        <Icon d={ICONS.setup} />
+        Setup
+      </Link>
 
       <div className="side-foot">
         <span className="avatar">{email.slice(0, 1)}</span>

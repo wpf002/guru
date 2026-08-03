@@ -72,8 +72,8 @@ export default async function SetupBrief() {
       ) : null}
 
       <div className="setup-nav">
-        <Link className="button" href="/setup/connect">
-          Continue
+        <Link className="button" href="/setup/roadmap">
+          Build my strategy
         </Link>
       </div>
     </>

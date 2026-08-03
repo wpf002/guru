@@ -58,9 +58,17 @@ export async function setupProgress(): Promise<Progress> {
     { id: "roadmap", label: "Strategy", href: "/setup/roadmap", done: Boolean(roadmap) },
   ];
 
-  const current = steps.find((s) => !s.done && !s.optional) ?? null;
+  // Optional means skippable, not skipped. Landing a brand-new user on step 3
+  // because steps 1 and 2 were optional is not walking them through setup — it
+  // is hiding two thirds of it. They get offered in order and moved past with a
+  // button.
+  const current = steps.find((s) => !s.done) ?? null;
 
-  return { steps, current, complete: current === null };
+  // Completion still only counts the required ones, so declining LinkedIn does
+  // not leave someone stuck in setup forever.
+  const complete = steps.every((s) => s.done || s.optional);
+
+  return { steps, current, complete };
 }
 
 /**

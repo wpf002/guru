@@ -10,8 +10,10 @@ export default async function SetupConnect() {
 
   return (
     <>
-      <h1>Let Guru post for you</h1>
-      <p className="lede">Optional. Without it, copy each approved draft yourself.</p>
+      <h1>Connect LinkedIn</h1>
+      <p className="lede">
+        Optional, and only needed to publish. You can do it any time.
+      </p>
 
       {status?.connected ? (
         <div className="callout">
@@ -31,8 +33,8 @@ export default async function SetupConnect() {
       )}
 
       <div className="setup-nav">
-        <Link className="button" href="/review">
-          Finish setup
+        <Link className="button secondary" href="/setup/archive">
+          {status?.connected ? "Continue" : "Skip — I'll do this later"}
         </Link>
       </div>
     </>
