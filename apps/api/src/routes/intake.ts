@@ -3,17 +3,25 @@ import { prisma } from "@guru/db";
 import type { GuruLlm } from "@guru/llm";
 import { startIntake, submitAnswer } from "../services/intake.js";
 import { activeBrief, editBrief, synthesizeBrief } from "../services/brief.js";
+import { ownedBy, requireUser } from "../auth.js";
 
-/** Intake and brief routes — roadmap §1.2 and §1.3. */
+/**
+ * Intake and brief routes — roadmap §1.2 and §1.3.
+ *
+ * Session ids and brief ids are addressable, so every route that takes one loads
+ * the row and checks it belongs to the caller before touching it. An id is not
+ * a capability.
+ */
 export async function intakeRoutes(app: FastifyInstance, llm: GuruLlm) {
   /** Idempotent: returns the in-progress session if one exists (resumable). */
-  app.post<{ Body: { userId: string } }>("/intake/start", async (request, reply) => {
-    return reply.send(await startIntake(request.body.userId));
+  app.post("/intake/start", async (request, reply) => {
+    return reply.send(await startIntake(requireUser(request)));
   });
 
-  app.post<{ Params: { sessionId: string }; Body: { message: string } }>(
+  app.post<{ Params: { sessionId: string }; Body: { message: string | null } }>(
     "/intake/:sessionId/answer",
     async (request, reply) => {
+      await assertOwnsSession(request.params.sessionId, requireUser(request));
       const result = await submitAnswer(llm, request.params.sessionId, request.body.message);
       return reply.send(result);
     },
@@ -22,6 +30,7 @@ export async function intakeRoutes(app: FastifyInstance, llm: GuruLlm) {
   app.get<{ Params: { sessionId: string } }>(
     "/intake/:sessionId",
     async (request, reply) => {
+      const userId = requireUser(request);
       const session = await prisma.intakeSession.findUnique({
         where: { id: request.params.sessionId },
         include: {
@@ -29,8 +38,9 @@ export async function intakeRoutes(app: FastifyInstance, llm: GuruLlm) {
           turns: { orderBy: { index: "asc" } },
         },
       });
-      if (!session) return reply.code(404).send({ error: "No such intake session." });
-      return reply.send(session);
+      // ownedBy collapses "no such session" and "not yours" into one response,
+      // so the endpoint cannot be used to discover which ids exist.
+      return reply.send(ownedBy(session, userId));
     },
   );
 
@@ -41,6 +51,7 @@ export async function intakeRoutes(app: FastifyInstance, llm: GuruLlm) {
   app.post<{ Params: { sessionId: string } }>(
     "/intake/:sessionId/brief",
     async (request, reply) => {
+      await assertOwnsSession(request.params.sessionId, requireUser(request));
       try {
         return reply.send(await synthesizeBrief(llm, request.params.sessionId));
       } catch (err) {
@@ -49,34 +60,45 @@ export async function intakeRoutes(app: FastifyInstance, llm: GuruLlm) {
     },
   );
 
-  app.get<{ Params: { userId: string } }>("/brief/:userId", async (request, reply) => {
-    const brief = await activeBrief(request.params.userId);
+  app.get("/brief", async (request, reply) => {
+    const brief = await activeBrief(requireUser(request));
     if (!brief) return reply.code(404).send({ error: "No brief yet." });
     return reply.send(brief);
   });
 
-  app.get<{ Params: { userId: string } }>(
-    "/brief/:userId/versions",
-    async (request, reply) => {
-      const versions = await prisma.strategicBrief.findMany({
-        where: { userId: request.params.userId },
-        orderBy: { version: "desc" },
-        select: {
-          id: true,
-          version: true,
-          createdAt: true,
-          editedByUser: true,
-          supersededById: true,
-        },
-      });
-      return reply.send({ versions });
-    },
-  );
+  app.get("/brief/versions", async (request, reply) => {
+    const versions = await prisma.strategicBrief.findMany({
+      where: { userId: requireUser(request) },
+      orderBy: { version: "desc" },
+      select: {
+        id: true,
+        version: true,
+        createdAt: true,
+        editedByUser: true,
+        supersededById: true,
+      },
+    });
+    return reply.send({ versions });
+  });
 
   app.patch<{ Params: { briefId: string }; Body: Record<string, unknown> }>(
     "/brief/id/:briefId",
     async (request, reply) => {
+      const userId = requireUser(request);
+      const brief = await prisma.strategicBrief.findUnique({
+        where: { id: request.params.briefId },
+        select: { id: true, userId: true },
+      });
+      ownedBy(brief, userId);
       return reply.send(await editBrief(request.params.briefId, request.body));
     },
   );
+}
+
+async function assertOwnsSession(sessionId: string, userId: string): Promise<void> {
+  const session = await prisma.intakeSession.findUnique({
+    where: { id: sessionId },
+    select: { id: true, userId: true },
+  });
+  ownedBy(session, userId);
 }

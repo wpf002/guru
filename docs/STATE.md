@@ -6,15 +6,20 @@ Handoff note. Everything below is committed and pushed.
 
 ```bash
 pnpm db:up          # Postgres on :5439
-pnpm go             # checks env, creates a local user, prints your URL
-pnpm dev
+pnpm db:migrate
+pnpm dev            # web on :3000, api on :3001
 ```
+
+Then open http://localhost:3000 and create an account. There is no longer a
+bootstrap route: sign-up is the only way to get a user row, and signing up with
+the email of an existing passwordless user adopts that row rather than forking
+it — which is how a pre-auth install keeps its archive and brief.
 
 `.env` has `DATABASE_URL`, `TOKEN_ENCRYPTION_KEY`, `ANTHROPIC_API_KEY` and the
 LinkedIn credentials set. Google and the intel provider are not configured, and
 the app runs fine without them.
 
-Tests: `pnpm test` (208, no database) and `pnpm test:integration` (101, needs the
+Tests: `pnpm test` (232, no database) and `pnpm test:integration` (123, needs the
 database). Conformance suite asserts roadmap claims directly — see
 [TRACEABILITY.md](TRACEABILITY.md).
 
@@ -110,13 +115,53 @@ get annoying.
 history is one job-change announcement and one "Congratulations! 🎉". §1.8's
 cold-start path is doing all the work; there is no real corpus to learn from.
 
+## Multi-user access (2 Aug 2026)
+
+Guru is multi-user. The schema always was; nothing authenticated anyone.
+
+Before: `userId` arrived in a query string, a path parameter or an
+`x-guru-user` header and every route believed it, and a missing header resolved
+to `prisma.user.findFirst({ orderBy: { createdAt: "asc" } })` — the oldest row
+in the database. Signing in as somebody else was a matter of typing their id,
+and every anonymous request read whoever signed up first.
+
+Now:
+
+- **Email and password**, scrypt via `node:crypto` (`packages/core/src/password.ts`).
+  No native addon, parameters stored in the hash so the cost can be raised
+  without invalidating anyone. Length is the only rule — composition rules
+  produce `Password1!`.
+- **Opaque session tokens**, SHA-256 hashed at rest, in an httpOnly SameSite=Lax
+  cookie. Logout deletes the row; a revoked session that still resolves is not
+  revoked. `POST /auth/logout-all` revokes every session for that user.
+- **`requireUser` is the only source of a userId.** It runs as a hook, so a
+  route added later is anonymous until it opts in.
+- **`ownedBy` guards every route that takes a bare resource id** — draft,
+  target, prospect, document, brief, voice profile, intake session. A draft id
+  is not a capability. Not-yours and does-not-exist both return 404, so the
+  endpoints cannot be used to discover which ids are real.
+- **`/bootstrap/*` is gone.** `/bootstrap/users` returned every user's email.
+- **LinkedIn connects to the signed-in user**, with no email-upsert fallback.
+- Login gives one answer for a wrong password and an unknown account, and hashes
+  a dummy when the account is missing so the timing does not leak either.
+
+Two ordering bugs fell out of writing the tests: `/archive/upload` parsed the
+multipart body before checking auth, so an anonymous caller could stream 500MB
+into the process before being rejected; and `/content/publish-due` swept every
+account, so any signed-in user could push everyone's scheduled posts out early.
+
 ## Open, in priority order
 
-1. **Intake UI loses the transcript on reload.** Session state resumes correctly;
+1. **The LinkedIn app is not verified.** The Developer Portal shows "not
+   verified as being associated with this company", which is LinkedIn's gate
+   before *other people's* accounts can authorize it. One click from the Page
+   admin. Until then only Will can connect LinkedIn — everything else works for
+   anyone.
+2. **Intake UI loses the transcript on reload.** Session state resumes correctly;
    the conversation doesn't redraw. `IntakeClient` never fetches prior turns.
-2. **§1.6 needs the Community Management API** — a vetted application, weeks of
+3. **§1.6 needs the Community Management API** — a vetted application, weeks of
    review. Code is built behind `LINKEDIN_FEED_SCOPES_APPROVED`.
-3. **Publishing has still never been called.** The token is real; the three
+4. **Publishing has still never been called.** The token is real; the three
    `w_member_social` actions are not exercised.
 
 ## Fixed: intake over-probing

@@ -1,4 +1,5 @@
 import { API_URL, apiGet } from "../../lib/api";
+import { requireSession } from "../../lib/session";
 
 /**
  * Archive setup and status — roadmap §1.1.
@@ -22,20 +23,13 @@ interface Snapshot {
 export default async function ArchivePage({
   searchParams,
 }: {
-  searchParams: Promise<{ userId?: string; connected?: string; error?: string }>;
+  searchParams: Promise<{ connected?: string; error?: string }>;
 }) {
-  const { userId, connected, error } = await searchParams;
+  const { connected, error } = await searchParams;
+  await requireSession();
 
-  if (!userId) {
-    return (
-      <main className="page">
-        <h1>Your LinkedIn archive</h1>
-        <p className="lede">Add a userId to the URL to set up archive ingestion.</p>
-      </main>
-    );
-  }
 
-  const data = await apiGet<{ snapshots: Snapshot[] }>(`/archive/status/${userId}`);
+  const data = await apiGet<{ snapshots: Snapshot[] }>("/archive/status");
   const snapshots = data?.snapshots ?? [];
   const needsDownload = snapshots.find((s) => s.fileReport?.downloadUrl);
 
@@ -108,7 +102,6 @@ export default async function ArchivePage({
 
       <h2>Upload</h2>
       <form action={`${API_URL}/archive/upload`} method="post" encType="multipart/form-data">
-        <input type="hidden" name="userId" value={userId} />
         <input type="file" name="archive" accept=".zip" required />
         <button className="button" type="submit">
           Upload archive

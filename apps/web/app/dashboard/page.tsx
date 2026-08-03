@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { apiGet } from "../../lib/api";
+import { requireSession } from "../../lib/session";
 
 /**
  * The confidence dashboard — roadmap §1.7 and §9.
@@ -45,14 +46,14 @@ const LABELS: Record<string, string> = {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ userId?: string }>;
+  searchParams: Promise<Record<string, never>>;
 }) {
-  const { userId } = await searchParams;
-  if (!userId) return <NeedsUser />;
+  await searchParams;
+  const user = await requireSession();
 
   const [confidence, metrics] = await Promise.all([
-    apiGet<Dashboard>(`/confidence/${userId}`),
-    apiGet<Metrics>(`/metrics/${userId}`),
+    apiGet<Dashboard>("/confidence"),
+    apiGet<Metrics>("/metrics"),
   ]);
 
   return (
@@ -95,7 +96,7 @@ export default async function DashboardPage({
             Every category is sustaining its threshold. Turning this on is a separate,
             explicit decision, and you can stop it at any time.
           </p>
-          <Link className="button" href={`/autonomy?userId=${userId}`}>
+          <Link className="button" href="/autonomy">
             Review autonomy settings
           </Link>
         </div>
@@ -149,14 +150,5 @@ function Stat({ label, value, note }: { label: string; value: string; note?: str
       <div className="card-value">{value}</div>
       {note ? <div className="card-note">{note}</div> : null}
     </div>
-  );
-}
-
-function NeedsUser() {
-  return (
-    <main className="page">
-      <h1>Dashboard</h1>
-      <p className="lede">Add a userId to the URL to view a dashboard.</p>
-    </main>
   );
 }

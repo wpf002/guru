@@ -4,8 +4,8 @@ import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import { GuruLlm, prismaGenerationSink } from "@guru/llm";
 import { loadEnv } from "./env.js";
-import { bootstrapRoutes } from "./routes/bootstrap.js";
 import { linkedinAuthRoutes } from "./routes/linkedin-auth.js";
+import { authRoutes } from "./routes/auth.js";
 import { archiveRoutes } from "./routes/archive.js";
 import { intakeRoutes } from "./routes/intake.js";
 import { strategyRoutes } from "./routes/strategy.js";
@@ -13,6 +13,7 @@ import { engagementRoutes } from "./routes/engagement.js";
 import { feedbackRoutes } from "./routes/feedback.js";
 import { autonomyRoutes } from "./routes/autonomy.js";
 import { schedulerStatus, startScheduler, tick } from "./services/scheduler.js";
+import { registerAuth, requireUser } from "./auth.js";
 
 export async function buildServer() {
   const env = loadEnv();
@@ -43,9 +44,14 @@ export async function buildServer() {
   await app.register(cookie);
   await app.register(multipart);
 
+  // Resolves the session cookie on every request and installs the 401/404
+  // handling for UnauthorizedError / ForbiddenError. Registered before any
+  // route so a route added later is anonymous until it calls requireUser.
+  await registerAuth(app);
+
   app.get("/health", async () => ({ ok: true }));
 
-  await bootstrapRoutes(app);
+  await authRoutes(app, env);
   await linkedinAuthRoutes(app, env);
   await archiveRoutes(app, env);
   await intakeRoutes(app, llm);
@@ -56,12 +62,15 @@ export async function buildServer() {
 
   // Scheduler status and a manual trigger. The trigger exists because "wait
   // fifteen minutes to see if the watcher works" is a bad debugging loop.
-  app.get<{ Querystring: { userId?: string } }>("/scheduler", async (request, reply) =>
-    reply.send(await schedulerStatus(request.query.userId)),
+  app.get("/scheduler", async (request, reply) =>
+    reply.send(await schedulerStatus(requireUser(request))),
   );
-  app.post("/scheduler/tick", async (_request, reply) => {
+  // Runs the whole sweep, so it stays signed-in-only rather than an open
+  // endpoint anyone can use to make the server do work.
+  app.post("/scheduler/tick", async (request, reply) => {
+    const userId = requireUser(request);
     await tick(env, llm);
-    return reply.send(await schedulerStatus());
+    return reply.send(await schedulerStatus(userId));
   });
 
   // Off in tests: an interval firing mid-suite would race the truncation.

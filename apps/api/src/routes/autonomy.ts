@@ -24,77 +24,61 @@ import {
   ingestUploadedDocument,
   listDriveCandidates,
 } from "../services/documents.js";
+import { ownedBy, requireUser } from "../auth.js";
+import { prisma } from "@guru/db";
 import type { Env } from "../env.js";
 
 /** Phase 2 and Phase 3 routes, plus document ingestion (§1.9). */
 export async function autonomyRoutes(app: FastifyInstance, env: Env, llm: GuruLlm) {
   // --- Autonomy settings and runs (§2.1, §2.2) ---
 
-  app.get<{ Params: { userId: string } }>("/autonomy/:userId", async (request, reply) => {
-    return reply.send(await settingsFor(request.params.userId));
+  app.get("/autonomy", async (request, reply) => {
+    return reply.send(await settingsFor(requireUser(request)));
   });
 
-  app.patch<{ Params: { userId: string }; Body: Record<string, never> }>(
-    "/autonomy/:userId",
-    async (request, reply) => {
-      return reply.send(await updateSettings(request.params.userId, request.body));
-    },
-  );
+  app.patch<{ Body: Record<string, never> }>("/autonomy", async (request, reply) => {
+    return reply.send(await updateSettings(requireUser(request), request.body));
+  });
 
   /** Halts everything immediately, independent of scores and caps. */
-  app.post<{ Params: { userId: string }; Body: { reason?: string } }>(
-    "/autonomy/:userId/kill",
-    async (request, reply) => {
-      return reply.send(
-        await engageKillSwitch(
-          request.params.userId,
-          request.body?.reason ?? "Stopped by the user.",
-        ),
-      );
-    },
-  );
+  app.post<{ Body: { reason?: string } }>("/autonomy/kill", async (request, reply) => {
+    return reply.send(
+      await engageKillSwitch(
+        requireUser(request),
+        request.body?.reason ?? "Stopped by the user.",
+      ),
+    );
+  });
 
-  app.post<{ Params: { userId: string } }>(
-    "/autonomy/:userId/resume",
-    async (request, reply) => {
-      return reply.send(await releaseKillSwitch(request.params.userId));
-    },
-  );
+  app.post("/autonomy/resume", async (request, reply) => {
+    return reply.send(await releaseKillSwitch(requireUser(request)));
+  });
 
-  app.post<{ Params: { userId: string } }>(
-    "/autonomy/:userId/run-engagement",
-    async (request, reply) => {
-      return reply.send(await runEngagementAutonomy(env, request.params.userId));
-    },
-  );
+  app.post("/autonomy/run-engagement", async (request, reply) => {
+    return reply.send(await runEngagementAutonomy(env, requireUser(request)));
+  });
 
-  app.post<{ Params: { userId: string } }>(
-    "/autonomy/:userId/run-content",
-    async (request, reply) => {
-      return reply.send(await runContentAutonomy(env, request.params.userId));
-    },
-  );
+  app.post("/autonomy/run-content", async (request, reply) => {
+    return reply.send(await runContentAutonomy(env, requireUser(request)));
+  });
 
   /** The audit trail — blocked actions included, because those are the point. */
-  app.get<{ Params: { userId: string } }>(
-    "/autonomy/:userId/log",
-    async (request, reply) => {
-      return reply.send({ actions: await autonomyLog(request.params.userId) });
-    },
-  );
+  app.get("/autonomy/log", async (request, reply) => {
+    return reply.send({ actions: await autonomyLog(requireUser(request)) });
+  });
 
   // --- Prospecting and assisted outreach (§2.3, §2.4) ---
 
-  app.post<{ Body: { userId: string; limit?: number; minFit?: number } }>(
+  app.post<{ Body: { limit?: number; minFit?: number } }>(
     "/prospects/identify",
     async (request, reply) => {
-      const { userId, ...options } = request.body;
-      return reply.send({ prospects: await identifyProspects(userId, options) });
+      const prospects = await identifyProspects(requireUser(request), request.body ?? {});
+      return reply.send({ prospects });
     },
   );
 
-  app.get<{ Params: { userId: string } }>("/prospects/:userId", async (request, reply) => {
-    return reply.send({ prospects: await prospectQueue(request.params.userId) });
+  app.get("/prospects", async (request, reply) => {
+    return reply.send({ prospects: await prospectQueue(requireUser(request)) });
   });
 
   /**
@@ -105,6 +89,7 @@ export async function autonomyRoutes(app: FastifyInstance, env: Env, llm: GuruLl
   app.post<{ Params: { prospectId: string } }>(
     "/prospects/:prospectId/draft",
     async (request, reply) => {
+      await assertOwnsProspect(request.params.prospectId, requireUser(request));
       try {
         const assisted = await draftOutreach(llm, request.params.prospectId);
         return reply.send({
@@ -124,22 +109,28 @@ export async function autonomyRoutes(app: FastifyInstance, env: Env, llm: GuruLl
 
   app.post<{ Params: { prospectId: string } }>(
     "/prospects/:prospectId/sent",
-    async (request, reply) => reply.send(await markSent(request.params.prospectId)),
+    async (request, reply) => {
+      await assertOwnsProspect(request.params.prospectId, requireUser(request));
+      return reply.send(await markSent(request.params.prospectId));
+    },
   );
 
   app.post<{ Params: { prospectId: string } }>(
     "/prospects/:prospectId/dismiss",
-    async (request, reply) => reply.send(await dismissProspect(request.params.prospectId)),
+    async (request, reply) => {
+      await assertOwnsProspect(request.params.prospectId, requireUser(request));
+      return reply.send(await dismissProspect(request.params.prospectId));
+    },
   );
 
   // --- Phase 3 hedge (§5) ---
 
-  app.post<{ Body: { userId: string; limit?: number } }>(
+  app.post<{ Body: { limit?: number } }>(
     "/audience/classify",
     async (request, reply) => {
       try {
         return reply.send(
-          await classifyAudience(llm, request.body.userId, { limit: request.body.limit }),
+          await classifyAudience(llm, requireUser(request), { limit: request.body?.limit }),
         );
       } catch (err) {
         return reply.code(409).send({ error: (err as Error).message });
@@ -147,32 +138,29 @@ export async function autonomyRoutes(app: FastifyInstance, env: Env, llm: GuruLl
     },
   );
 
-  app.get<{ Params: { userId: string } }>("/audience/:userId", async (request, reply) => {
-    return reply.send(await audienceBreakdown(request.params.userId));
+  app.get("/audience", async (request, reply) => {
+    return reply.send(await audienceBreakdown(requireUser(request)));
   });
 
   // --- Documents (§1.9) ---
 
-  app.get<{ Params: { userId: string } }>(
-    "/documents/candidates/:userId",
-    async (request, reply) => {
-      if (!env.google) return reply.code(503).send({ error: "Google is not configured." });
-      return reply.send({
-        candidates: await listDriveCandidates(env.google, request.params.userId),
-      });
-    },
-  );
+  app.get("/documents/candidates", async (request, reply) => {
+    if (!env.google) return reply.code(503).send({ error: "Google is not configured." });
+    return reply.send({
+      candidates: await listDriveCandidates(env.google, requireUser(request)),
+    });
+  });
 
   /** Per-document confirm. Nothing auto-ingests (§0.7). */
   app.post<{
-    Body: { userId: string; externalId: string; taggedExcerpts?: string[] };
+    Body: { externalId: string; taggedExcerpts?: string[] };
   }>("/documents/confirm", async (request, reply) => {
     if (!env.google) return reply.code(503).send({ error: "Google is not configured." });
     return reply.send(
       await confirmAndIngestDrive(
         llm,
         env.google,
-        request.body.userId,
+        requireUser(request),
         request.body.externalId,
         request.body.taggedExcerpts ?? [],
       ),
@@ -180,18 +168,31 @@ export async function autonomyRoutes(app: FastifyInstance, env: Env, llm: GuruLl
   });
 
   app.post<{
-    Body: { userId: string; title: string; raw: string; taggedExcerpts?: string[] };
+    Body: { title: string; raw: string; taggedExcerpts?: string[] };
   }>("/documents/upload", async (request, reply) => {
-    const { userId, ...options } = request.body;
-    return reply.send(await ingestUploadedDocument(llm, userId, options));
+    return reply.send(await ingestUploadedDocument(llm, requireUser(request), request.body));
   });
 
   /** Real deletion, not a flag. */
   app.delete<{ Params: { documentId: string } }>(
     "/documents/:documentId",
     async (request, reply) => {
+      const userId = requireUser(request);
+      const doc = await prisma.sourceDocument.findUnique({
+        where: { id: request.params.documentId },
+        select: { id: true, userId: true },
+      });
+      ownedBy(doc, userId);
       await deleteDocument(request.params.documentId);
       return reply.send({ deleted: true });
     },
   );
+}
+
+async function assertOwnsProspect(prospectId: string, userId: string): Promise<void> {
+  const prospect = await prisma.prospectTarget.findUnique({
+    where: { id: prospectId },
+    select: { id: true, userId: true },
+  });
+  ownedBy(prospect, userId);
 }

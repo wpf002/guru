@@ -15,16 +15,17 @@ import {
 } from "../services/content.js";
 import { MissingScopeError } from "@guru/linkedin";
 import { ReauthRequiredError } from "../services/linkedin-session.js";
+import { ownedBy, requireUser } from "../auth.js";
 import type { Env } from "../env.js";
 
 /** Analysis, roadmap, and content routes — roadmap §1.4 and §1.5. */
 export async function strategyRoutes(app: FastifyInstance, env: Env, llm: GuruLlm) {
   // --- Analysis (§1.4) ---
 
-  app.post<{ Body: { userId: string; peers: { name: string; linkedinUrl?: string }[] } }>(
+  app.post<{ Body: { peers: { name: string; linkedinUrl?: string }[] } }>(
     "/peers",
     async (request, reply) => {
-      return reply.send({ peers: await setPeers(request.body.userId, request.body.peers) });
+      return reply.send({ peers: await setPeers(requireUser(request), request.body.peers) });
     },
   );
 
@@ -32,35 +33,32 @@ export async function strategyRoutes(app: FastifyInstance, env: Env, llm: GuruLl
    * Resumable by design — a 10,000-connection network is scored across several
    * calls, and the response says how many are left.
    */
-  app.post<{ Body: { userId: string; limit?: number } }>(
+  app.post<{ Body: { limit?: number } }>(
     "/analysis/persona-fit",
     async (request, reply) => {
-      const result = await scorePersonaFit(llm, request.body.userId, {
-        limit: request.body.limit,
+      const result = await scorePersonaFit(llm, requireUser(request), {
+        limit: request.body?.limit,
       });
       return reply.send(result);
     },
   );
 
-  app.get<{ Params: { userId: string } }>(
-    "/analysis/network/:userId",
-    async (request, reply) => {
-      return reply.send(await networkPicture(request.params.userId));
-    },
-  );
+  app.get("/analysis/network", async (request, reply) => {
+    return reply.send(await networkPicture(requireUser(request)));
+  });
 
   // --- Roadmap (§1.4) ---
 
-  app.post<{ Body: { userId: string } }>("/roadmap", async (request, reply) => {
+  app.post("/roadmap", async (request, reply) => {
     try {
-      return reply.send(await generateRoadmap(llm, request.body.userId, env.intel));
+      return reply.send(await generateRoadmap(llm, requireUser(request), env.intel));
     } catch (err) {
       return reply.code(409).send({ error: (err as Error).message });
     }
   });
 
-  app.get<{ Params: { userId: string } }>("/roadmap/:userId", async (request, reply) => {
-    const roadmap = await activeRoadmap(request.params.userId);
+  app.get("/roadmap", async (request, reply) => {
+    const roadmap = await activeRoadmap(requireUser(request));
     if (!roadmap) return reply.code(404).send({ error: "No roadmap yet." });
     return reply.send(roadmap);
   });
@@ -72,13 +70,15 @@ export async function strategyRoutes(app: FastifyInstance, env: Env, llm: GuruLl
    * behind "strategy before content" — there is deliberately no route that
    * generates a post from a free-text topic.
    */
-  app.post<{ Body: { userId: string; roadmapElementId: string } }>(
+  app.post<{ Body: { roadmapElementId: string } }>(
     "/content/draft",
     async (request, reply) => {
       try {
+        // generateDraft already refuses a roadmap element belonging to someone
+        // else; passing the session user is what makes that check meaningful.
         const draft = await generateDraft(
           llm,
-          request.body.userId,
+          requireUser(request),
           request.body.roadmapElementId,
         );
         return reply.send(draft);
@@ -102,12 +102,12 @@ export async function strategyRoutes(app: FastifyInstance, env: Env, llm: GuruLl
     },
   );
 
-  app.get<{ Params: { userId: string }; Querystring: { status?: string } }>(
-    "/content/:userId",
+  app.get<{ Querystring: { status?: string } }>(
+    "/content",
     async (request, reply) => {
       const drafts = await prisma.contentDraft.findMany({
         where: {
-          userId: request.params.userId,
+          userId: requireUser(request),
           ...(request.query.status ? { status: request.query.status as never } : {}),
         },
         orderBy: { createdAt: "desc" },
@@ -124,6 +124,7 @@ export async function strategyRoutes(app: FastifyInstance, env: Env, llm: GuruLl
   app.post<{ Params: { draftId: string }; Body: { instruction: string } }>(
     "/content/:draftId/refine",
     async (request, reply) => {
+      await assertOwnsDraft(request.params.draftId, requireUser(request));
       try {
         return reply.send(
           await refineDraft(llm, request.params.draftId, request.body.instruction),
@@ -142,6 +143,7 @@ export async function strategyRoutes(app: FastifyInstance, env: Env, llm: GuruLl
   app.patch<{ Params: { draftId: string }; Body: { content: string } }>(
     "/content/:draftId",
     async (request, reply) => {
+      await assertOwnsDraft(request.params.draftId, requireUser(request));
       return reply.send(await applyUserEdit(request.params.draftId, request.body.content));
     },
   );
@@ -150,6 +152,7 @@ export async function strategyRoutes(app: FastifyInstance, env: Env, llm: GuruLl
   app.get<{ Params: { draftId: string } }>(
     "/content/:draftId/review",
     async (request, reply) => {
+      await assertOwnsDraft(request.params.draftId, requireUser(request));
       return reply.send(await reviewDraft(request.params.draftId));
     },
   );
@@ -157,6 +160,7 @@ export async function strategyRoutes(app: FastifyInstance, env: Env, llm: GuruLl
   app.post<{ Params: { draftId: string }; Body: { scheduledFor: string } }>(
     "/content/:draftId/schedule",
     async (request, reply) => {
+      await assertOwnsDraft(request.params.draftId, requireUser(request));
       try {
         return reply.send(
           await scheduleDraft(request.params.draftId, new Date(request.body.scheduledFor)),
@@ -170,6 +174,7 @@ export async function strategyRoutes(app: FastifyInstance, env: Env, llm: GuruLl
   app.post<{ Params: { draftId: string } }>(
     "/content/:draftId/publish",
     async (request, reply) => {
+      await assertOwnsDraft(request.params.draftId, requireUser(request));
       try {
         return reply.send(await publishDraft(env, request.params.draftId));
       } catch (err) {
@@ -187,8 +192,24 @@ export async function strategyRoutes(app: FastifyInstance, env: Env, llm: GuruLl
     },
   );
 
-  /** Scheduler tick. One failure must not stop the rest of the queue. */
-  app.post("/content/publish-due", async (_request, reply) => {
-    return reply.send({ results: await publishDueDrafts(env) });
+  /**
+   * Manual "publish anything that is due" for the signed-in user. One failure
+   * must not stop the rest of the queue.
+   *
+   * Scoped to the caller: the background scheduler sweeps every account by
+   * calling the service directly, but an HTTP trigger must not be able to push
+   * someone else's scheduled posts out early.
+   */
+  app.post("/content/publish-due", async (request, reply) => {
+    const userId = requireUser(request);
+    return reply.send({ results: await publishDueDrafts(env, new Date(), userId) });
   });
+}
+
+async function assertOwnsDraft(draftId: string, userId: string): Promise<void> {
+  const draft = await prisma.contentDraft.findUnique({
+    where: { id: draftId },
+    select: { id: true, userId: true },
+  });
+  ownedBy(draft, userId);
 }

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { currentUser } from "../lib/api";
+import { SignOut } from "./SignOut";
 
 const STEPS = [
   {
@@ -28,9 +30,39 @@ const STEPS = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const user = await currentUser();
+
+  // The landing page stays readable signed out — it explains what this is
+  // before asking anyone to create an account.
+  if (!user) {
+    return (
+      <main className="page">
+        <h1>Guru</h1>
+        <p className="lede">
+          A go-to-market strategist that lives on top of your LinkedIn presence. It learns
+          your niche, your network, and how you actually write — then proposes the
+          strategy, the posts, and the comments that execute it.
+        </p>
+        <p>
+          <Link className="button" href="/login?mode=signup">
+            Create an account
+          </Link>{" "}
+          <Link href="/login">or sign in</Link>
+        </p>
+        <p className="note">
+          Guru does not send connection requests or DMs. There is no compliant API for
+          either, and the tools that claim otherwise put your account at risk — which is
+          the one asset this is all meant to grow. It builds the list and drafts the
+          message; you press send.
+        </p>
+      </main>
+    );
+  }
+
   return (
     <main className="page">
+      <SignOut email={user.email} />
       <h1>Guru</h1>
       <p className="lede">
         A go-to-market strategist that lives on top of your LinkedIn presence. It learns

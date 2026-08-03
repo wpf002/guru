@@ -26,7 +26,7 @@ export interface DraftView {
 
 const CATEGORIES = ["TOPIC", "ANGLE", "TONE", "FORMAT", "CADENCE"] as const;
 
-export function ContentReview({ userId, drafts }: { userId: string; drafts: DraftView[] }) {
+export function ContentReview({ drafts }: { drafts: DraftView[] }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,6 +37,9 @@ export function ContentReview({ userId, drafts }: { userId: string; drafts: Draf
       const res = await fetch(`${API_URL}${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // Different origin in development — without this the session cookie is
+        // not sent and every approval 401s.
+        credentials: "include",
         body: body === undefined ? undefined : JSON.stringify(body),
       });
       if (!res.ok) throw new Error((await res.text()) || `Request failed (${res.status})`);
@@ -94,7 +97,6 @@ export function ContentReview({ userId, drafts }: { userId: string; drafts: Draf
               disabled={busy !== null}
               onClick={() =>
                 call("/decisions", {
-                  userId,
                   type: "APPROVE",
                   category: "TONE",
                   contentDraftId: draft.id,
@@ -107,7 +109,6 @@ export function ContentReview({ userId, drafts }: { userId: string; drafts: Draf
               disabled={busy !== null}
               onReject={(reason, category) =>
                 call("/decisions", {
-                  userId,
                   type: "REJECT",
                   category,
                   contentDraftId: draft.id,
@@ -219,7 +220,7 @@ export interface TargetView {
   drafts: { id: string; content: string | null; status: string; whyThis: string | null }[];
 }
 
-export function EngagementReview({ userId, targets }: { userId: string; targets: TargetView[] }) {
+export function EngagementReview({ targets }: { targets: TargetView[] }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -230,6 +231,9 @@ export function EngagementReview({ userId, targets }: { userId: string; targets:
       const res = await fetch(`${API_URL}${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // Different origin in development — without this the session cookie is
+        // not sent and every approval 401s.
+        credentials: "include",
         body: body === undefined ? undefined : JSON.stringify(body),
       });
       if (!res.ok) throw new Error((await res.text()) || `Request failed (${res.status})`);
@@ -283,7 +287,6 @@ export function EngagementReview({ userId, targets }: { userId: string; targets:
                     disabled={busy}
                     onClick={async () => {
                       await call("/decisions", {
-                        userId,
                         type: "APPROVE",
                         category: "ENGAGEMENT_TARGET",
                         engagementDraftId: draft.id,
@@ -304,7 +307,6 @@ export function EngagementReview({ userId, targets }: { userId: string; targets:
                     disabled={busy}
                     onClick={() =>
                       call("/decisions", {
-                        userId,
                         type: "REJECT",
                         category: "ENGAGEMENT_TARGET",
                         engagementDraftId: draft.id,

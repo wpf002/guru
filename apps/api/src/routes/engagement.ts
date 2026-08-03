@@ -10,13 +10,15 @@ import {
   targetQueue,
 } from "../services/engagement.js";
 import { ReauthRequiredError } from "../services/linkedin-session.js";
+import { ownedBy, requireUser } from "../auth.js";
+import { prisma } from "@guru/db";
 import type { Env } from "../env.js";
 
 /** Engagement engine routes — roadmap §1.6. */
 export async function engagementRoutes(app: FastifyInstance, env: Env, llm: GuruLlm) {
-  app.post<{ Body: { userId: string } }>("/engagement/discover", async (request, reply) => {
+  app.post("/engagement/discover", async (request, reply) => {
     try {
-      const result = await discoverTargets(llm, request.body.userId, env.intel);
+      const result = await discoverTargets(llm, requireUser(request), env.intel);
       if (result.degraded) {
         // A clear "not configured" beats an empty queue that looks like a bug.
         return reply.send({
@@ -30,16 +32,14 @@ export async function engagementRoutes(app: FastifyInstance, env: Env, llm: Guru
     }
   });
 
-  app.get<{ Params: { userId: string } }>(
-    "/engagement/queue/:userId",
-    async (request, reply) => {
-      return reply.send({ targets: await targetQueue(request.params.userId) });
-    },
-  );
+  app.get("/engagement/queue", async (request, reply) => {
+    return reply.send({ targets: await targetQueue(requireUser(request)) });
+  });
 
   app.post<{ Params: { targetId: string }; Body: { roadmapElementId?: string } }>(
     "/engagement/:targetId/comment",
     async (request, reply) => {
+      await assertOwnsTarget(request.params.targetId, requireUser(request));
       try {
         return reply.send(
           await draftComment(llm, request.params.targetId, request.body?.roadmapElementId),
@@ -59,6 +59,7 @@ export async function engagementRoutes(app: FastifyInstance, env: Env, llm: Guru
   app.post<{ Params: { targetId: string }; Body: { type?: ReactionType } }>(
     "/engagement/:targetId/react",
     async (request, reply) => {
+      await assertOwnsTarget(request.params.targetId, requireUser(request));
       return reply.send(
         await draftReaction(request.params.targetId, request.body?.type ?? "LIKE"),
       );
@@ -72,6 +73,12 @@ export async function engagementRoutes(app: FastifyInstance, env: Env, llm: Guru
   app.post<{ Params: { draftId: string } }>(
     "/engagement/draft/:draftId/publish",
     async (request, reply) => {
+      const userId = requireUser(request);
+      const draft = await prisma.engagementDraft.findUnique({
+        where: { id: request.params.draftId },
+        select: { id: true, userId: true },
+      });
+      ownedBy(draft, userId);
       try {
         return reply.send(await publishEngagement(env, request.params.draftId));
       } catch (err) {
@@ -91,4 +98,12 @@ export async function engagementRoutes(app: FastifyInstance, env: Env, llm: Guru
       }
     },
   );
+}
+
+async function assertOwnsTarget(targetId: string, userId: string): Promise<void> {
+  const target = await prisma.engagementTarget.findUnique({
+    where: { id: targetId },
+    select: { id: true, userId: true },
+  });
+  ownedBy(target, userId);
 }

@@ -1,4 +1,5 @@
 import { apiGet } from "../../lib/api";
+import { requireSession } from "../../lib/session";
 
 /**
  * Autonomy settings and audit — roadmap §2.1, §2.2, §2.5.
@@ -31,21 +32,14 @@ interface Action {
 export default async function AutonomyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ userId?: string }>;
+  searchParams: Promise<Record<string, never>>;
 }) {
-  const { userId } = await searchParams;
-  if (!userId) {
-    return (
-      <main className="page">
-        <h1>Autonomy</h1>
-        <p className="lede">Add a userId to the URL.</p>
-      </main>
-    );
-  }
+  await searchParams;
+  await requireSession();
 
   const [settings, log] = await Promise.all([
-    apiGet<Settings>(`/autonomy/${userId}`),
-    apiGet<{ actions: Action[] }>(`/autonomy/${userId}/log`),
+    apiGet<Settings>("/autonomy"),
+    apiGet<{ actions: Action[] }>("/autonomy/log"),
   ]);
 
   return (

@@ -7,3 +7,4 @@ export * from "./voice.js";
 export * from "./similarity.js";
 export * from "./autonomy.js";
 export * from "./schedule.js";
+export * from "./password.js";

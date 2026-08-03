@@ -33,7 +33,7 @@ const AREA_LABELS: Record<string, string> = {
   VOICE_AND_CONSTRAINTS: "Voice and constraints",
 };
 
-export function IntakeClient({ userId }: { userId: string }) {
+export function IntakeClient() {
   const [state, setState] = useState<TurnResult | null>(null);
   const [messages, setMessages] = useState<{ role: string; text: string }[]>([]);
   const [input, setInput] = useState("");
@@ -49,7 +49,7 @@ export function IntakeClient({ userId }: { userId: string }) {
 
     void (async () => {
       try {
-        const result = await post<TurnResult>("/intake/start", { userId });
+        const result = await post<TurnResult>("/intake/start");
         setState(result);
         // Starting a fresh session has no question yet — ask for the first one.
         const first = result.question
@@ -61,7 +61,7 @@ export function IntakeClient({ userId }: { userId: string }) {
         setError(err instanceof Error ? err.message : String(err));
       }
     })();
-  }, [userId]);
+  }, []);
 
   async function send() {
     const text = input.trim();
@@ -92,7 +92,7 @@ export function IntakeClient({ userId }: { userId: string }) {
     setBusy(true);
     try {
       await post(`/intake/${state.sessionId}/brief`);
-      location.href = `/dashboard?userId=${userId}`;
+      location.href = "/dashboard";
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setBusy(false);
@@ -171,6 +171,9 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    // The API is a different origin in development, so the session cookie is
+    // only sent when this is set. Without it every action is anonymous and 401s.
+    credentials: "include",
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) throw new Error((await res.text()) || `Request failed (${res.status})`);

@@ -5,6 +5,7 @@ import {
   type DraftView,
   type TargetView,
 } from "./ReviewClient";
+import { requireSession } from "../../lib/session";
 
 /**
  * The approval surface — roadmap §1.5, §1.6, §3.6.
@@ -16,23 +17,16 @@ import {
 export default async function ReviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ userId?: string; tab?: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
-  const { userId, tab } = await searchParams;
-  if (!userId) {
-    return (
-      <main className="page">
-        <h1>Review</h1>
-        <p className="lede">Add a userId to the URL to review drafts.</p>
-      </main>
-    );
-  }
+  const { tab } = await searchParams;
+  await requireSession();
 
   const active = tab === "engagement" ? "engagement" : "content";
 
   const [content, engagement] = await Promise.all([
-    apiGet<{ drafts: DraftView[] }>(`/content/${userId}`),
-    apiGet<{ targets: TargetView[] }>(`/engagement/queue/${userId}`),
+    apiGet<{ drafts: DraftView[] }>("/content"),
+    apiGet<{ targets: TargetView[] }>("/engagement/queue"),
   ]);
 
   const pending = (content?.drafts ?? []).filter(
@@ -44,21 +38,21 @@ export default async function ReviewPage({
       <h1>Review</h1>
 
       <nav className="tabs">
-        <a className={active === "content" ? "tab active" : "tab"} href={`/review?userId=${userId}`}>
+        <a className={active === "content" ? "tab active" : "tab"} href="/review">
           Content ({pending.length})
         </a>
         <a
           className={active === "engagement" ? "tab active" : "tab"}
-          href={`/review?userId=${userId}&tab=engagement`}
+          href="/review?tab=engagement"
         >
           Engagement ({engagement?.targets.length ?? 0})
         </a>
       </nav>
 
       {active === "content" ? (
-        <ContentReview userId={userId} drafts={pending} />
+        <ContentReview drafts={pending} />
       ) : (
-        <EngagementReview userId={userId} targets={engagement?.targets ?? []} />
+        <EngagementReview targets={engagement?.targets ?? []} />
       )}
     </main>
   );

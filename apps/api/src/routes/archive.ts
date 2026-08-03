@@ -7,6 +7,7 @@ import {
   type GoogleConfig,
 } from "../services/google.js";
 import { ingestUpload, pollAndIngest, snapshotDelta } from "../services/archive-ingest.js";
+import { requireUser } from "../auth.js";
 import type { Env } from "../env.js";
 
 /**
@@ -53,7 +54,10 @@ export async function archiveRoutes(app: FastifyInstance, env: Env) {
 
       try {
         const tokens = await exchangeGoogleCode(google, code);
-        const userId = await currentUserId(request.headers["x-guru-user"]);
+        // The session cookie survives the round trip (SameSite=Lax), so the
+        // connection attaches to whoever is signed in rather than to a header
+        // the caller controls.
+        const userId = requireUser(request);
 
         await prisma.googleAccount.upsert({
           where: { userId },
@@ -92,53 +96,52 @@ export async function archiveRoutes(app: FastifyInstance, env: Env) {
    * Poll for archive emails. Safe to call on a schedule and safe to call twice —
    * already-ingested message ids are filtered before anything downloads.
    */
-  app.post<{ Body: { userId: string } }>("/archive/poll", async (request, reply) => {
+  app.post("/archive/poll", async (request, reply) => {
     if (!google) return reply.code(503).send({ error: "Google is not configured." });
-    const results = await pollAndIngest(google, request.body.userId);
+    const results = await pollAndIngest(google, requireUser(request));
     return reply.send({ results });
   });
 
   /** Manual upload — the fallback, and where the semi-automatic path lands. */
   app.post("/archive/upload", async (request, reply) => {
+    // Authenticate before touching the body. Parsing first would let an
+    // anonymous caller stream half a gigabyte into the process before being
+    // told no — and it returns multipart's 406 instead of a 401, which reads
+    // like a content-type problem rather than a missing session.
+    //
+    // The id comes from the session, never from a multipart field: an archive is
+    // the most sensitive upload in the product and must land on the uploader.
+    const userId = requireUser(request);
+
     const file = await request.file({ limits: { fileSize: MAX_UPLOAD_BYTES } });
     if (!file) return reply.code(400).send({ error: "No file was uploaded." });
-
-    const userId = String(
-      (file.fields.userId as { value?: string } | undefined)?.value ?? "",
-    );
-    if (!userId) return reply.code(400).send({ error: "userId is required." });
 
     const buffer = await file.toBuffer();
     const result = await ingestUpload(userId, buffer);
     return reply.send(result);
   });
 
-  app.get<{ Params: { userId: string } }>(
-    "/archive/status/:userId",
-    async (request, reply) => {
-      const snapshots = await prisma.archiveSnapshot.findMany({
-        where: { userId: request.params.userId },
-        orderBy: { requestedAt: "desc" },
-        take: 10,
-        select: {
-          id: true,
-          source: true,
-          status: true,
-          requestedAt: true,
-          completedAt: true,
-          fileReport: true,
-          error: true,
-        },
-      });
-      return reply.send({ snapshots });
-    },
-  );
+  app.get("/archive/status", async (request, reply) => {
+    const snapshots = await prisma.archiveSnapshot.findMany({
+      where: { userId: requireUser(request) },
+      orderBy: { requestedAt: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        source: true,
+        status: true,
+        requestedAt: true,
+        completedAt: true,
+        fileReport: true,
+        error: true,
+      },
+    });
+    return reply.send({ snapshots });
+  });
 
   /** Growth and churn between the two most recent snapshots (§9). */
-  app.get<{ Params: { userId: string } }>(
-    "/archive/delta/:userId",
-    async (request, reply) => {
-      const delta = await snapshotDelta(request.params.userId);
+  app.get("/archive/delta", async (request, reply) => {
+      const delta = await snapshotDelta(requireUser(request));
       if (!delta) return reply.send({ delta: null });
       return reply.send({
         delta: {
@@ -151,20 +154,5 @@ export async function archiveRoutes(app: FastifyInstance, env: Env) {
           newConnectionFitRatio: delta.newConnectionFitRatio,
         },
       });
-    },
-  );
-}
-
-/**
- * Single-tenant UX over a multi-tenant schema (§0.7): the header is the seam
- * where real session auth will attach, and it exists now so no route has to be
- * rewritten to add it.
- */
-async function currentUserId(header: string | string[] | undefined): Promise<string> {
-  const id = Array.isArray(header) ? header[0] : header;
-  if (id) return id;
-
-  const only = await prisma.user.findFirst({ orderBy: { createdAt: "asc" } });
-  if (!only) throw new Error("No user exists yet — connect LinkedIn first.");
-  return only.id;
+  });
 }

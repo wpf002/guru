@@ -53,7 +53,7 @@ and the intel provider have not, and nothing has been published yet. See
 | §5 | Customer/operator classification (Phase 1 hedge) | ✅ built |
 | §9 | Metrics: weekly report, archive-derived, edits/draft | ✅ built |
 
-**196 unit tests** and **101 integration tests against a live Postgres**, all
+**232 unit tests** and **123 integration tests against a live Postgres**, all
 passing. `apps/web` and `apps/api` both build; the API boots against the real
 database and serves every route.
 
@@ -84,8 +84,11 @@ packages/db           Prisma schema + client
 Pure logic lives in packages and is unit-tested; I/O lives in apps. Four
 invariants hold throughout:
 
-**Every table carries `userId`.** Multi-tenant schema, single-tenant UX. Tenancy
-is not something you retrofit.
+**Every table carries `userId`, and every route resolves it from the session.**
+`requireUser` is the only sanctioned source of a user id, and `ownedBy` guards
+every route that addresses a row by its own id — a draft id is not a capability.
+Not-yours and does-not-exist both answer 404, so no endpoint can be used to
+discover which ids exist.
 
 **Every generated artifact points at a `Generation` row** recording resolved
 inputs, prompt name, prompt version, and model. Prompt versions are immutable —
@@ -219,20 +222,23 @@ Google, the intel provider, and the Anthropic key are all optional at boot —
 a deployment without them starts and degrades visibly rather than failing.
 LinkedIn credentials and the encryption key are required.
 
+### Accounts
+
+Open http://localhost:3000 and create one. Email and password — scrypt hashed,
+opaque session tokens in an httpOnly cookie, and every route resolves the user
+from that session rather than from the URL.
+
+Signing up with the email of an existing passwordless user *adopts* that row
+rather than creating a second one, which is how an install that predates
+sign-up keeps its archive, brief and drafts.
+
 ### LinkedIn is optional
 
 **You do not need LinkedIn to use Guru.** The archive is a ZIP upload, and
 intake, brief, roadmap, drafting and refinement are all local. Only publishing
 touches the API — until you wire it up, copy the draft and post it yourself.
-
-Start with no credentials at all:
-
-```bash
-curl -X POST localhost:3001/bootstrap/user -H 'content-type: application/json' -d '{}'
-```
-
-That returns a userId and the three URLs to work through. The server boots
-without `LINKEDIN_*` set; the publish button returns a clear 503 explaining why.
+The server boots without `LINKEDIN_*` set; the publish button returns a clear
+503 explaining why.
 
 ### LinkedIn credentials, when you want publishing
 

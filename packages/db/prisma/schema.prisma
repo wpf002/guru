@@ -25,8 +25,14 @@ model User {
   id        String   @id @default(cuid())
   email     String   @unique
   name      String?
+  /// scrypt, salted per user — see packages/core/src/password.ts.
+  /// Nullable because a user can exist before a password is set (the local
+  /// bootstrap path), and those accounts simply cannot log in.
+  passwordHash String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  sessions         Session[]
 
   linkedinAccount  LinkedInAccount?
   googleAccount    GoogleAccount?
@@ -53,6 +59,34 @@ model User {
   autonomySettings AutonomySettings?
   prospects        ProspectTarget[]
   audienceSignals  AudienceSignal[]
+}
+
+/// A logged-in browser session.
+///
+/// Multi-tenant schema, multi-tenant UX now (§0.7). Until this existed the
+/// userId arrived in a query string or a header and every route trusted it,
+/// which made "sign in as anyone" a matter of typing a different id.
+///
+/// The cookie carries an opaque random token; only its SHA-256 hash is stored,
+/// so a database leak does not hand over live sessions. Rows are deleted on
+/// logout rather than flagged — a revoked session that still resolves is not
+/// revoked.
+model Session {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// SHA-256 of the cookie token. Unique so a token maps to at most one session.
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  /// Recorded for the user's own "where am I signed in" view, never for tracking.
+  userAgent String?
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 /// LinkedIn OAuth connection. §1.0.

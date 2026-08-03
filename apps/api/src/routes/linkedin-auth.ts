@@ -8,6 +8,7 @@ import {
   fetchProfile,
   generateState,
 } from "@guru/linkedin";
+import { requireUser } from "../auth.js";
 import type { Env } from "../env.js";
 
 /**
@@ -20,51 +21,31 @@ import type { Env } from "../env.js";
  */
 
 const STATE_COOKIE = "li_oauth_state";
-/**
- * Which local user this connection belongs to.
- *
- * Without it the callback has only the LinkedIn profile to go on, so it keys the
- * user row on the LinkedIn email. That silently forks the account whenever the
- * local user was created with any other address: intake, brief, and archive stay
- * on the original row while the token lands on a brand-new one, and the product
- * reports "connected" while every downstream read comes back empty.
- */
-const USER_COOKIE = "li_oauth_user";
 const STATE_TTL_SECONDS = 600;
 
 export async function linkedinAuthRoutes(app: FastifyInstance, env: Env) {
   const linkedin = env.linkedin;
 
   /** Step 1 — redirect to LinkedIn's consent screen. */
-  app.get<{ Querystring: { userId?: string } }>("/auth/linkedin/start", async (request, reply) => {
+  app.get("/auth/linkedin/start", async (request, reply) => {
     if (!linkedin) {
       return reply.code(503).send({
         error:
           "LinkedIn is not configured. Publishing is unavailable; everything else works. See docs/LINKEDIN-SETUP.md.",
       });
     }
-    const state = generateState();
+    // Fail before consent, not after: granting access and then discovering you
+    // were signed out wastes the grant.
+    requireUser(request);
 
-    const cookieOptions = {
+    const state = generateState();
+    reply.setCookie(STATE_COOKIE, state, {
       httpOnly: true,
       secure: env.nodeEnv === "production",
-      sameSite: "lax" as const,
+      sameSite: "lax",
       path: "/",
       maxAge: STATE_TTL_SECONDS,
-    };
-
-    reply.setCookie(STATE_COOKIE, state, cookieOptions);
-
-    // Verified here rather than in the callback: a bad userId should fail before
-    // the user is sent to consent, not after they have granted access.
-    const { userId } = request.query;
-    if (userId) {
-      const exists = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
-      if (!exists) return reply.code(404).send({ error: `No user with id ${userId}.` });
-      reply.setCookie(USER_COOKIE, userId, cookieOptions);
-    } else {
-      reply.clearCookie(USER_COOKIE, { path: "/" });
-    }
+    });
 
     return reply.redirect(authorizationUrl(linkedin, state));
   });
@@ -75,6 +56,9 @@ export async function linkedinAuthRoutes(app: FastifyInstance, env: Env) {
     async (request, reply) => {
       if (!linkedin) return reply.code(503).send({ error: "LinkedIn is not configured." });
 
+      // SameSite=Lax keeps the session cookie across LinkedIn's redirect back,
+      // which is what lets the connection attach to the right account.
+      const sessionUserId = request.authUserId;
       const { code, state, error, error_description } = request.query;
 
       if (error) {
@@ -95,29 +79,24 @@ export async function linkedinAuthRoutes(app: FastifyInstance, env: Env) {
         const tokens = await exchangeCode(linkedin, code);
         const profile = await fetchProfile(tokens.accessToken);
 
-        // Multi-tenant schema, single-tenant UX (§0.7): every downstream table
-        // hangs off the user id, so attaching to the *wrong* row is worse than
-        // failing to attach at all.
+        // Every downstream table hangs off the user id, so attaching to the
+        // *wrong* row is worse than failing to attach at all.
         //
-        // When the flow was started for a known user, that binding wins. The
-        // email upsert is the fallback for a first-time connection with no local
-        // user yet — it must not be allowed to fork an existing one.
-        const boundUserId = request.cookies[USER_COOKIE];
-        reply.clearCookie(USER_COOKIE, { path: "/" });
+        // The signed-in user owns the connection, full stop. An earlier version
+        // keyed the row on the LinkedIn profile email instead, which forked any
+        // account created with a different address — token on a new row, brief
+        // and intake stranded on the old one, "connected" reported either way.
+        // There is deliberately no fallback: if the session is gone by the time
+        // LinkedIn redirects back, the right answer is to sign in and retry, not
+        // to guess whose account this is.
+        if (!sessionUserId) {
+          return reply.redirect(`${env.webOrigin}/connect?error=signed_out`);
+        }
 
-        const user = boundUserId
-          ? await prisma.user.update({
-              where: { id: boundUserId },
-              data: { name: profile.name },
-            })
-          : await prisma.user.upsert({
-              where: { email: profile.email ?? `${profile.sub}@linkedin.local` },
-              update: { name: profile.name },
-              create: {
-                email: profile.email ?? `${profile.sub}@linkedin.local`,
-                name: profile.name,
-              },
-            });
+        const user = await prisma.user.update({
+          where: { id: sessionUserId },
+          data: { name: profile.name },
+        });
 
         const tokenData = {
           linkedinSub: profile.sub,
@@ -157,16 +136,15 @@ export async function linkedinAuthRoutes(app: FastifyInstance, env: Env) {
    * One-click disconnect (§1.0). Tokens are deleted, not flagged — a revoked
    * connection that leaves ciphertext in the database is not a disconnect.
    */
-  app.post<{ Body: { userId: string } }>("/auth/linkedin/disconnect", async (request, reply) => {
-    const { userId } = request.body;
-    await prisma.linkedInAccount.deleteMany({ where: { userId } });
+  app.post("/auth/linkedin/disconnect", async (request, reply) => {
+    await prisma.linkedInAccount.deleteMany({ where: { userId: requireUser(request) } });
     return reply.send({ disconnected: true });
   });
 
   /** Connection status for the dashboard. Never returns token material. */
-  app.get<{ Params: { userId: string } }>("/auth/linkedin/status/:userId", async (request, reply) => {
+  app.get("/auth/linkedin/status", async (request, reply) => {
     const account = await prisma.linkedInAccount.findUnique({
-      where: { userId: request.params.userId },
+      where: { userId: requireUser(request) },
       select: {
         linkedinSub: true,
         name: true,

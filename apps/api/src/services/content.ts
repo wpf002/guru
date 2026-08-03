@@ -273,9 +273,18 @@ export async function publishDraft(env: Env, draftId: string): Promise<ContentDr
  * Publishes everything due. Called by a scheduler; safe to call repeatedly.
  * One failure must not stop the rest of the queue.
  */
-export async function publishDueDrafts(env: Env, now = new Date()) {
+/**
+ * `userId` scopes the sweep to one account. The scheduler omits it and sweeps
+ * everyone; the HTTP route always passes the caller's id, so triggering the
+ * tick over the network cannot publish somebody else's queue early.
+ */
+export async function publishDueDrafts(env: Env, now = new Date(), userId?: string) {
   const due = await prisma.contentDraft.findMany({
-    where: { status: "SCHEDULED", scheduledFor: { lte: now } },
+    where: {
+      status: "SCHEDULED",
+      scheduledFor: { lte: now },
+      ...(userId ? { userId } : {}),
+    },
     select: { id: true },
   });
 
