@@ -1272,3 +1272,27 @@ button + button {
   align-items: center;
   gap: 0.625rem;
 }
+
+/* Four tiles in an auto-fill grid orphan the fourth on its own row. A fixed
+   pair layout stays balanced at every width, and equal heights stop a label
+   that wraps to two lines from making one tile taller than its neighbours. */
+.grid.pairs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.grid.pairs .card {
+  display: flex;
+  flex-direction: column;
+  min-height: 7.25rem;
+}
+
+.grid.pairs .card-note {
+  margin-top: auto;
+}
+
+@media (max-width: 40rem) {
+  .grid.pairs {
+    grid-template-columns: 1fr;
+  }
+}

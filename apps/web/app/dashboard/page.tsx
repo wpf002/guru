@@ -134,11 +134,9 @@ export default async function DashboardPage({
 
       <h2>Activity</h2>
       {published === 0 ? (
-        <p className="note">
-          Nothing published yet. These fill in once you approve and post.
-        </p>
+        <p className="note">Fills in once you approve and post.</p>
       ) : null}
-      <div className="grid">
+      <div className="grid pairs">
         <Stat
           label="Edits per draft"
           value={metrics?.internal.editsPerDraft.current?.toFixed(2) ?? "—"}
@@ -150,20 +148,25 @@ export default async function DashboardPage({
                 : "Up on last period"
           }
         />
-        <Stat label="Posts published" value={String(metrics?.internal.postsPublished ?? 0)} />
+        <Stat
+          label="Posts published"
+          value={String(metrics?.internal.postsPublished ?? 0)}
+          note="Approved by you"
+        />
         <Stat
           label="Comments published"
           value={String(metrics?.internal.engagementsPublished ?? 0)}
+          note="Approved by you"
         />
         <Stat
-          label="New connections matching persona"
+          label="Persona-fit connections"
           value={
             metrics?.internal.newConnectionFitRatio === null ||
             metrics?.internal.newConnectionFitRatio === undefined
               ? "—"
               : `${Math.round(metrics.internal.newConnectionFitRatio * 100)}%`
           }
-          note="New connections only"
+          note="Since your last archive"
         />
       </div>
 
