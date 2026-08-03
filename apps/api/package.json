@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "linkedin:doctor": "tsx --env-file-if-exists=../../.env src/scripts/linkedin-doctor.ts",
-    "go": "tsx --env-file-if-exists=../../.env src/scripts/go.ts"
+    "go": "tsx --env-file-if-exists=../../.env src/scripts/go.ts",
+    "linkedin:preflight": "tsx --env-file-if-exists=../../.env src/scripts/linkedin-preflight.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

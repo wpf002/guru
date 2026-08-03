@@ -21,7 +21,8 @@
     "db:studio": "pnpm --filter @guru/db studio",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
     "linkedin:doctor": "pnpm --filter @guru/api linkedin:doctor",
-    "go": "pnpm --filter @guru/api go"
+    "go": "pnpm --filter @guru/api go",
+    "linkedin:preflight": "pnpm --filter @guru/api linkedin:preflight"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

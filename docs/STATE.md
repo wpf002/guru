@@ -160,8 +160,17 @@ account, so any signed-in user could push everyone's scheduled posts out early.
    the conversation doesn't redraw. `IntakeClient` never fetches prior turns.
 2. **§1.6 needs the Community Management API** — a vetted application, weeks of
    review. Code is built behind `LINKEDIN_FEED_SCOPES_APPROVED`.
-3. **Publishing has still never been called.** The token is real; the three
-   `w_member_social` actions are not exercised.
+3. **Publishing has still never been called.** `pnpm linkedin:preflight` now
+   verifies everything up to the write against the live API without creating
+   anything — token decryption, liveness, scope, protocol headers, the pinned
+   `LinkedIn-Version`, and that the payload carries every field LinkedIn says
+   it requires (it enumerates them in its rejection, which turns the error into
+   a schema check). All green as of 2 Aug 2026.
+
+   What is still unproven is the *content* of those fields — that a real
+   commentary string and visibility value are accepted. Only an actual post
+   settles that. `deletePost` exists, so the cheapest real test is publish then
+   immediately delete, which is still briefly visible to the network.
 
 ## Fixed: intake over-probing
 
