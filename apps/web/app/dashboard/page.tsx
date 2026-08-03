@@ -56,12 +56,22 @@ export default async function DashboardPage({
     apiGet<Metrics>("/metrics"),
   ]);
 
+  const scored = (confidence?.categories ?? []).filter((c) => c.score !== null);
+  const published =
+    (metrics?.internal.postsPublished ?? 0) + (metrics?.internal.engagementsPublished ?? 0);
+  const needed = Math.max(
+    0,
+    ...(confidence?.categories ?? []).map((c) =>
+      c.score === null ? 20 - c.sampleSize : 0,
+    ),
+  );
+
   return (
     <main className="page">
       <header className="head">
         <div className="head-text">
           <h1>Progress</h1>
-          <p className="lede">Whether Guru is learning, and from what.</p>
+          <p className="lede">How well Guru knows you yet.</p>
         </div>
         {/* The only two things a settings page would have carried that are not
             already on a screen. */}
@@ -70,25 +80,36 @@ export default async function DashboardPage({
         </a>
       </header>
 
-      <h2>Confidence by category</h2>
-      <p className="lede">
-        Scored per category from your recent decisions. Too few decisions shows no score,
-        not zero.
-      </p>
+      <h2>Confidence</h2>
 
-      <div className="grid">
-        {confidence?.categories.map((c) => (
-          <div className="card" key={c.category}>
-            <div className="card-label">{LABELS[c.category] ?? c.category}</div>
-            <div className="card-value">
-              {c.score === null ? "—" : `${Math.round(c.score * 100)}%`}
+      {/* Six cards each saying "20 more decisions needed" is a wall of nothing.
+          Until any category has a score, say it once. */}
+      {scored.length === 0 ? (
+        <div className="empty">
+          <h3>Nothing scored yet</h3>
+          <p>
+            Approve or reject {needed} more drafts and Guru starts scoring how well it
+            reads you — separately for topic, angle, tone, format and cadence.
+          </p>
+          <a className="button" href="/review">
+            Go to review
+          </a>
+        </div>
+      ) : (
+        <div className="grid">
+          {confidence?.categories.map((c) => (
+            <div className="card" key={c.category}>
+              <div className="card-label">{LABELS[c.category] ?? c.category}</div>
+              <div className="card-value">
+                {c.score === null ? "—" : `${Math.round(c.score * 100)}%`}
+              </div>
+              <div className="card-note">
+                {c.note ?? `${c.sampleSize} decisions${c.meetsThreshold ? " · at threshold" : ""}`}
+              </div>
             </div>
-            <div className="card-note">
-              {c.note ?? `${c.sampleSize} decisions${c.meetsThreshold ? " · at threshold" : ""}`}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {confidence?.outreach ? (
         <p className="note">
@@ -111,14 +132,19 @@ export default async function DashboardPage({
         </div>
       ) : null}
 
-      <h2>Is it learning?</h2>
+      <h2>Activity</h2>
+      {published === 0 ? (
+        <p className="note">
+          Nothing published yet. These fill in once you approve and post.
+        </p>
+      ) : null}
       <div className="grid">
         <Stat
           label="Edits per draft"
           value={metrics?.internal.editsPerDraft.current?.toFixed(2) ?? "—"}
           note={
             metrics?.internal.editsPerDraft.improving === null
-              ? "Needs two periods"
+              ? "Needs two weeks to compare"
               : metrics?.internal.editsPerDraft.improving
                 ? "Down on last period — the voice model is landing closer"
                 : "Up on last period"

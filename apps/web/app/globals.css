@@ -1244,10 +1244,19 @@ button + button {
   margin-top: 2.5rem;
 }
 
-/* Setup sits apart from the three working screens. */
+/* Setup sits with the nav, just quieter — margin-top:auto pinned it to the
+   bottom of the viewport and left a screen-height hole above it. */
 .side-link.quiet {
-  margin-top: auto;
+  margin-top: 0.75rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
   color: var(--faint);
+}
+
+.side-link.quiet:hover {
+  background: transparent;
+  color: var(--fg);
 }
 
 .revisit {

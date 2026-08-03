@@ -84,6 +84,8 @@ describe("registry", () => {
       }
     }
 
+    // Shrinks as each template is superseded by one that declares properly.
+    // content.draft@1.2.0 is absent because it does.
     expect(undeclared.sort()).toEqual([
       "content.draft@1.0.0: peerPatterns",
       "content.draft@1.1.0: documentSignal",

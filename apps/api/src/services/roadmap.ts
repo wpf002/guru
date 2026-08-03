@@ -98,7 +98,23 @@ is not.
 
 Where the trend picture is marked degraded, you have no current market data. Say
 so in the summary and lean on the brief and the network rather than inventing
-trends.`;
+trends.
+
+Length is a hard constraint, not a style note. Every field below is read on a
+card in a list, and a paragraph where a sentence belongs makes the whole plan
+unreadable:
+
+- summary: at most 2 sentences.
+- title: at most 9 words. A plain instruction, not a slogan.
+- rationale: at most 2 sentences, 35 words total. Say why this matters now.
+  Do not restate the title, the goal or the audience.
+- businessGoal: one sentence, at most 20 words.
+- audienceSegment: a noun phrase, at most 15 words. Not a paragraph about tiers.
+- targetTopics: 3-5 items, at most 6 words each.
+
+Write like a colleague briefing you in a corridor. No em-dash chains, no
+"the reason is structural", no sentence that begins by explaining what the
+sentence is about.`;
 
 function buildPrompt(
   network: Awaited<ReturnType<typeof networkPicture>>,

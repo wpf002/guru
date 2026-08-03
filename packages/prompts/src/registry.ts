@@ -371,6 +371,73 @@ Return JSON: { "content": string, "format": string, "whyThis": string }
 element this serves and which audience segment it is for.`,
 });
 
+/**
+ * v1.2.0 — stop the review card reading like a synopsis.
+ *
+ * v1.1.0 asked for "one sentence" and got 40-word run-ons that restated the
+ * roadmap element back to the user above a post they were about to read
+ * anyway. A word limit and a worked bad example are what actually move it.
+ */
+export const CONTENT_DRAFT_V1_2 = register({
+  name: "content.draft",
+  version: "1.2.0",
+  variables: [
+    "roadmapElement",
+    "brief",
+    "voiceProfile",
+    "peerPatterns",
+    "documentSignal",
+  ],
+  template: `Write a ready-to-post LinkedIn post.
+
+THE STRATEGIC REASON THIS POST EXISTS:
+{{roadmapElement}}
+
+THE BRIEF:
+{{brief}}
+
+HOW THIS PERSON WRITES (modeled from their real posts and comments):
+{{voiceProfile}}
+
+WHAT PEERS IN THIS NICHE ARE DOING (patterns, not material to copy):
+{{peerPatterns}}
+
+FROM THEIR OWN RECENT WORK (meeting notes and documents they confirmed):
+{{documentSignal}}
+
+Requirements:
+- A finished post, not an outline and not a topic idea. It should be publishable
+  as written.
+- It must serve the roadmap element above. If you cannot connect it to that
+  element in one sentence, write a different post.
+- Match their voice profile, including the parts that are not "good writing" —
+  if they open abruptly, open abruptly. A post that reads better than they write
+  reads like it wasn't them.
+- Where their own work gives you a specific detail — a number, a phrase a client
+  used, a problem that keeps recurring — prefer it over anything generic. That
+  specificity is the whole reason those notes are here, and it is what a
+  competitor writing about the same topic cannot copy.
+- Never reproduce identifying details from those notes: no client names, no
+  figures that could identify a deal, nothing that survives being read by the
+  person it came from.
+- No engagement bait, no "agree?", no rows of single-sentence paragraphs unless
+  that is genuinely their pattern.
+- Do not reproduce phrasing or structure from the peer material. Those are there
+  to show what formats land, not to be rewritten.
+
+Return JSON: { "content": string, "format": string, "whyThis": string }
+
+"whyThis" sits under the title on a review card. One sentence, at most 20 words,
+plain. Say what the post does, not what kind of post it is.
+
+  Good: "Makes the sampling argument concrete so peers argue the rule, not the premise."
+  Bad:  "This is the foundational thesis post that the next twelve months of
+         content extends from, aimed at senior peer practitioners who will argue
+         the sampling rule in the comments while leadership watches."
+
+"format" is 2-4 words — "short post", "story", "teardown". Not a description.`,
+});
+
 export const ENGAGEMENT_COMMENT_V1 = register({
   name: "engagement.comment",
   version: "1.0.0",
@@ -460,6 +527,7 @@ export const ALL_TEMPLATES = [
   BRIEF_SYNTHESIZE_V1_1,
   CONTENT_DRAFT_V1,
   CONTENT_DRAFT_V1_1,
+  CONTENT_DRAFT_V1_2,
   ENGAGEMENT_COMMENT_V1,
   VOICE_SUMMARY_V1,
   REFINE_DRAFT_V1,
@@ -469,7 +537,7 @@ export const ALL_TEMPLATES = [
 export const CURRENT = {
   intakeFollowup: INTAKE_FOLLOWUP_V1_1,
   briefSynthesize: BRIEF_SYNTHESIZE_V1_1,
-  contentDraft: CONTENT_DRAFT_V1_1,
+  contentDraft: CONTENT_DRAFT_V1_2,
   engagementComment: ENGAGEMENT_COMMENT_V1,
   voiceSummary: VOICE_SUMMARY_V1,
   refineDraft: REFINE_DRAFT_V1,
