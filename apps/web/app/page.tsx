@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { currentUser } from "../lib/api";
-import { SignOut } from "./SignOut";
 
 // Ordered by what to do first, not by what the pipeline depends on. The archive
 // takes hours on LinkedIn's side, so it is requested early and used late —
@@ -41,7 +40,7 @@ export default async function Home() {
   // before asking anyone to create an account.
   if (!user) {
     return (
-      <main className="page">
+      <main className="page centered">
         <h1>Guru</h1>
         <p className="lede">
           A go-to-market strategist that lives on top of your LinkedIn presence. It learns
@@ -66,21 +65,21 @@ export default async function Home() {
 
   return (
     <main className="page">
-      <SignOut email={user.email} />
-      <h1>Guru</h1>
+      <h1>Welcome back</h1>
       <p className="lede">
         A go-to-market strategist that lives on top of your LinkedIn presence. It learns
         your niche, your network, and how you actually write — then proposes the strategy,
         the posts, and the comments that execute it.
       </p>
 
-      {STEPS.map((step) => (
-        <section className="draft" key={step.href}>
-          <h2 style={{ marginTop: 0 }}>
-            <Link href={step.href}>{step.title}</Link>
+      {STEPS.map((step, i) => (
+        <Link className="step" href={step.href} key={step.href}>
+          <h2>
+            <span className="step-num">{i + 1}</span>
+            {step.title}
           </h2>
-          <p style={{ margin: 0, color: "var(--muted)" }}>{step.body}</p>
-        </section>
+          <p>{step.body}</p>
+        </Link>
       ))}
 
       <p className="note">

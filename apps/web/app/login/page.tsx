@@ -13,7 +13,7 @@ export default async function LoginPage({
   const { mode } = await searchParams;
 
   return (
-    <main className="page">
+    <main className="page centered">
       <h1>Guru</h1>
       <p className="lede">
         Sign in to reach your strategy, drafts, and archive. Everything is scoped to your

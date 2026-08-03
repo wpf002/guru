@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { API_URL } from "../../lib/api";
 
 /**
@@ -11,7 +10,6 @@ import { API_URL } from "../../lib/api";
  * the choice deserves, and people routinely land on the wrong one.
  */
 export function LoginForm({ initialMode }: { initialMode: "login" | "signup" }) {
-  const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,10 +44,11 @@ export function LoginForm({ initialMode }: { initialMode: "login" | "signup" }) 
         return;
       }
 
-      // Server components read the session cookie, so the cached render has to
-      // go — otherwise the dashboard renders its signed-out shell.
-      router.refresh();
-      router.push("/");
+      // A full navigation, not router.push. The root layout decides whether to
+      // render the sidebar, and a client-side push reuses the layout that was
+      // rendered while signed out — so the first screen after signing in had no
+      // navigation on it at all until the user happened to reload.
+      window.location.assign("/");
     } catch {
       setError("Could not reach the API. Is it running on port 3001?");
     } finally {
@@ -58,33 +57,39 @@ export function LoginForm({ initialMode }: { initialMode: "login" | "signup" }) 
   }
 
   return (
-    <form onSubmit={submit} className="draft" style={{ display: "grid", gap: "0.75rem" }}>
-      <label style={{ display: "grid", gap: "0.25rem" }}>
+    <form onSubmit={submit} className="draft">
+      {error ? (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      <label className="field">
         <span>Email</span>
         <input
           type="email"
           required
           autoComplete="email"
+          placeholder="you@company.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
       </label>
 
-      {signingUp && (
-        <label style={{ display: "grid", gap: "0.25rem" }}>
-          <span>
-            Name <span style={{ color: "var(--muted)" }}>(optional)</span>
-          </span>
+      {signingUp ? (
+        <label className="field">
+          <span>Name</span>
           <input
             type="text"
             autoComplete="name"
+            placeholder="Optional"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
         </label>
-      )}
+      ) : null}
 
-      <label style={{ display: "grid", gap: "0.25rem" }}>
+      <label className="field">
         <span>Password</span>
         <input
           type="password"
@@ -93,34 +98,30 @@ export function LoginForm({ initialMode }: { initialMode: "login" | "signup" }) 
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        {signingUp && (
-          <small style={{ color: "var(--muted)" }}>
+        {signingUp ? (
+          <small>
             At least 12 characters. A phrase you can remember beats a short password you
             cannot.
           </small>
-        )}
+        ) : null}
       </label>
 
-      {error && (
-        <p role="alert" style={{ color: "var(--bad, #b00)", margin: 0 }}>
-          {error}
-        </p>
-      )}
-
-      <button type="submit" disabled={busy}>
+      <button className="block" type="submit" disabled={busy}>
         {busy ? "Working…" : signingUp ? "Create account" : "Sign in"}
       </button>
 
-      <button
-        type="button"
-        onClick={() => {
-          setMode(signingUp ? "login" : "signup");
-          setError(null);
-        }}
-        style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}
-      >
-        {signingUp ? "I already have an account" : "Create an account instead"}
-      </button>
+      <div style={{ textAlign: "center" }}>
+        <button
+          type="button"
+          className="linky"
+          onClick={() => {
+            setMode(signingUp ? "login" : "signup");
+            setError(null);
+          }}
+        >
+          {signingUp ? "I already have an account" : "Create an account instead"}
+        </button>
+      </div>
     </form>
   );
 }
