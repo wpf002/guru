@@ -409,6 +409,10 @@ h3 {
   margin: 0 0 1rem;
 }
 
+.draft h2 {
+  margin: 0 0 0.625rem;
+}
+
 .step {
   display: grid;
   grid-template-columns: 1.75rem 1fr;
@@ -783,15 +787,28 @@ button:disabled {
 /* --- Drafts -------------------------------------------------------------- */
 
 .why {
-  border-left: 2px solid var(--accent);
-  padding-left: 0.875rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.875rem;
   margin-bottom: 1.125rem;
+  border-bottom: 1px solid var(--line);
 }
 
-.why p {
-  margin: 0.25rem 0 0;
-  color: var(--muted);
+.why strong {
   font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+/* The rationale is context, not the headline — full width, dimmer, smaller. */
+.why p {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 
 .draft-body {
@@ -827,9 +844,10 @@ button:disabled {
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.625rem;
   align-items: center;
-  padding-top: 1.125rem;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
   border-top: 1px solid var(--line);
 }
 

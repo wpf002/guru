@@ -76,7 +76,11 @@ export function ContentReview({ drafts }: { drafts: DraftView[] }) {
           <pre className="draft-body">{draft.content}</pre>
 
           <div className="meta">
-            <span>{draft.status.toLowerCase()}</span>
+            {/* A status is a state, not a sentence — it reads as stray text
+                otherwise. */}
+            <span className={`pill ${draft.status === "APPROVED" ? "ok" : ""}`}>
+              {draft.status.toLowerCase().replace(/_/g, " ")}
+            </span>
             {draft.revisions.length > 1 ? (
               <span>{draft.revisions.length - 1} revisions</span>
             ) : null}
@@ -89,6 +93,9 @@ export function ContentReview({ drafts }: { drafts: DraftView[] }) {
             ) : null}
           </div>
 
+          {/* Labelled: an unlabelled box between the post and the buttons gives
+              no clue what typing in it does. */}
+          <h2>Change something</h2>
           <Refine draftId={draft.id} onSubmit={(instruction) =>
             call(`/content/${draft.id}/refine`, { instruction })
           } />
@@ -205,7 +212,7 @@ function RejectButton({
         value={reason}
         onChange={(e) => setReason(e.target.value)}
       />
-      <button className="button ghost" onClick={() => onReject(reason, category)}>
+      <button className="button danger" onClick={() => onReject(reason, category)}>
         Confirm reject
       </button>
     </div>
