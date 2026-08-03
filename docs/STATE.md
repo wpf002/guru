@@ -73,9 +73,42 @@ Two things this exposed, both of which only a real export could show:
   the ZIP held 41 files including `Connections.csv`. Do not infer contents from
   that list.
 
-The brief on file was generated *before* this, so it was synthesized with "no
-archive has been ingested yet". Re-running intake would now produce a
-materially better one.
+## Brief v2, from the real archive (2 Aug 2026)
+
+Intake re-run against the ingested archive and answered from Will's actual
+profile and message history. **Five questions total** — one opening plus four
+follow-ups — with areas 2 and 5 seeded from the archive, so it confirmed his
+network and cadence instead of asking him to recite them. v1 is superseded.
+
+The picture changed materially, because v1 was synthesized with "no archive has
+been ingested yet":
+
+- The goal is a **job search**, not general visibility. His own profile summary
+  says he is "actively seeking a role that values detection quality and
+  measurable security improvements". Target seat: Senior/Staff Detection
+  Engineer, in-house, twelve-month horizon.
+- Inbound already exists and is the wrong kind — 91 messages from 35 people
+  since Nov 2025, ~40 mentioning a role, almost all cold agency recruiters
+  during his Oct 2025–Mar 2026 gap. The goal is to replace that channel, not
+  create one from zero.
+- The persona is two-tier: people who can open a req (detection/SOC leadership,
+  1,000+ employees, in-house SOC) and peer practitioners who refer and argue.
+
+The never-say list grew from 18 to 27 literal terms and now covers every past
+employer (Adobe, Deepwatch, Zyston, ReliaQuest, CenturyLink) and stack
+(Splunk, Sumo Logic, CrowdStrike, Carbon Black, Sentinel, Elastic), verified
+blocking real sentences.
+
+**Known false positives, deliberately kept:** `Sands`, `Sentinel` and `Elastic`
+also block "the sands of time", "a sentinel value in the parser" and "elastic
+scaling" — all plausible in his domain. The failure is safe: a blocked draft is
+regenerated, whereas a miss names his employer publicly while he is employed in
+a regulated industry. `editBrief` (§1.3) is how to relax it if the regenerations
+get annoying.
+
+**Voice modelling has almost nothing to work with.** His entire published
+history is one job-change announcement and one "Congratulations! 🎉". §1.8's
+cold-start path is doing all the work; there is no real corpus to learn from.
 
 ## Open, in priority order
 
